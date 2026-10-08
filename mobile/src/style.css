@@ -13,7 +13,8 @@ button.card{-webkit-tap-highlight-color:transparent;user-select:none;-webkit-use
 
 .air-sources{margin:18px 2px 0}
 
-.air-card .value{font-size:32px}.air-card .value span{display:block;margin:4px 0 0;font-size:12px;letter-spacing:0}
+.air-card .value{font-size:32px}
+#app[data-tab=air] .grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.air-card .value span{display:block;margin:4px 0 0;font-size:12px;letter-spacing:0}
 
 .air-card.air-low{background:#e5efe1;border-color:#ccdcca}.air-card.air-moderate{background:#fff0cd;border-color:#e8d6a3}.air-card.air-high{background:#f9dcc8;border-color:#e9bea0}.air-card.air-very-high{background:#f2c9ca;border-color:#db9ea1}.air-card.air-no-data{background:var(--nodata-bg);border-color:var(--nodata-border)}.air-card .note:empty{display:none}
 .disclosure .disclosure{border-radius:12px;background:var(--surface-nested)}.disclosure .disclosure summary{padding:13px;font-weight:500}.probability{white-space:nowrap}.pbar{display:inline-block;width:46px;height:6px;border-radius:3px;background:var(--pbar-track);margin-right:6px;vertical-align:1px;overflow:hidden}.pbar span{display:block;height:100%;background:var(--pbar)}
@@ -23,10 +24,10 @@ button.card{-webkit-tap-highlight-color:transparent;user-select:none;-webkit-use
 
 /* Keep the air overview compact, with the map collapsed, on phone screens. */
 @media(max-width:649px){
- #app[data-tab=air]:has(#mapwrap:not([open])) .grid{gap:10px}
- #app[data-tab=air]:has(#mapwrap:not([open])) .air-card{min-height:108px;padding:13px 16px;border-radius:16px}
+ #app[data-tab=air]:has(#mapwrap:not([open])) .grid{gap:8px}
+ #app[data-tab=air]:has(#mapwrap:not([open])) .air-card{min-height:98px;padding:12px 10px;border-radius:16px}
  #app[data-tab=air]:has(#mapwrap:not([open])) .air-card .label{margin-bottom:6px}
- #app[data-tab=air]:has(#mapwrap:not([open])) .air-card .value{font-size:30px}
+ #app[data-tab=air]:has(#mapwrap:not([open])) .air-card .value{font-size:26px;letter-spacing:-1px}
  #app[data-tab=air]:has(#mapwrap:not([open])) .air-card .value span{margin-top:2px;font-size:11px}
  #app[data-tab=air]:has(#mapwrap:not([open])) .air-sources{margin-top:12px;font-size:11px;line-height:1.45}
  #app[data-tab=air]:has(#mapwrap:not([open])) .footer{margin-top:14px}
@@ -134,6 +135,7 @@ button.card{-webkit-tap-highlight-color:transparent;user-select:none;-webkit-use
 @media(max-width:360px){.temperature-overview{gap:8px}.temperature-feels{padding-left:8px}.temperature-feels .feels{gap:4px}.temperature-feels .feels .card{padding:6px 3px}.temperature-feels .feels .card .value{font-size:18px}.temperature-feels .feels .card .label{font-size:9px}}
 
 .temperature-footnote{grid-column:1 / -1;font-size:9px;line-height:1.4;color:var(--muted);margin-top:-2px}
+.temperature-feels .temperature-footnote{margin-top:6px}
 .temperature-feels .feels .card{align-self:stretch}
 .pressure-indicator{position:absolute;right:16px;top:14px;font-size:22px;line-height:1;color:var(--accent)}
 .card:has(.pressure-indicator)>.label{padding-right:24px}

@@ -2,6 +2,10 @@ import {t} from './i18n.js';
 // Milliseconds; fixed elapsed hours, independent of midnight and daylight saving.
 export function rollingWindow(at){return {from:at-86400000,to:at+86400000};}
 export const POLLUTANTS=['pm25','pm10','no2','o3','so2','co'];
+// Air tab cards by importance: overall index, particles, Saharan dust, then gases.
+// EAQI and dust come only from the CAMS model; there are no ground measurements.
+export const AIR_MODEL_ONLY=['eaqi','dust'];
+export const AIR_CARDS=['eaqi','pm25','pm10','dust','o3','no2','so2','co'];
 export function points(data,key,from=-Infinity,to=Infinity,shift=0,step=3600){
  const rows=(data?.ts||[]).map((t,i)=>[(t+shift)*1000,data[key]?.[i]??null]).filter(([t])=>t>=from&&t<=to);
  const out=[];

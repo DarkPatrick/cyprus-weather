@@ -21,7 +21,7 @@ import { Capacitor } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { App } from '@capacitor/app';
 import { sunPosition,sunTimes,sunWindow,HOUR } from './sun.js';
-import {points,latest,stress,stressClass,POLLUTANTS,mapReading,rollingWindow,windDirection} from './series.js';
+import {points,latest,stress,stressClass,POLLUTANTS,AIR_MODEL_ONLY,AIR_CARDS,mapReading,rollingWindow,windDirection} from './series.js';
 
 const $=id=>document.getElementById(id);
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -29,7 +29,7 @@ const num=(v,n=1)=>v==null||!Number.isFinite(Number(v))?'—':Number(v).toLocale
 const time=t=>t==null?'—':new Date(t).toLocaleTimeString(locale(),{timeZone:'Asia/Nicosia',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 const date=t=>t==null?'—':new Date(t).toLocaleString(locale(),{timeZone:'Asia/Nicosia',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 const base=(import.meta.env.VITE_API_BASE||'').replace(/\/$/,'');
-let metrics;function localizedMetrics(){metrics={temp:[tr("weather.temperature"),'°C'],utci_shade:[tr("weather.shadeUtci"),'°C'],utci_sun:[tr("weather.sunUtci"),'°C'],net:['NET','°C'],wind10:[tr("weather.wind"),tr("units.wind")],rh:[tr("weather.humidity"),'%'],rain:[tr("weather.precipitation"),tr("units.rain")],p_station:[tr("weather.pressure"),tr("units.pressure")],sst:[tr("weather.seaTemperature"),'°C'],sun:[tr("sun.elevation"),'°'],radiation:[tr("sun.radiationChart"),''],pm25:['PM2.5',tr("units.pollution")],pm10:['PM10',tr("units.pollution")],no2:['NO₂',tr("units.pollution")],o3:['O₃',tr("units.pollution")],so2:['SO₂',tr("units.pollution")],co:['CO',tr("units.pollution")]};}localizedMetrics();
+let metrics;function localizedMetrics(){metrics={temp:[tr("weather.temperature"),'°C'],utci_shade:[tr("weather.shadeUtci"),'°C'],utci_sun:[tr("weather.sunUtci"),'°C'],net:['NET','°C'],wind10:[tr("weather.wind"),tr("units.wind")],rh:[tr("weather.humidity"),'%'],rain:[tr("weather.precipitation"),tr("units.rain")],p_station:[tr("weather.pressure"),tr("units.pressure")],sst:[tr("weather.seaTemperature"),'°C'],sun:[tr("sun.elevation"),'°'],radiation:[tr("sun.radiationChart"),''],pm25:['PM2.5',tr("units.pollution")],pm10:['PM10',tr("units.pollution")],no2:['NO₂',tr("units.pollution")],o3:['O₃',tr("units.pollution")],so2:['SO₂',tr("units.pollution")],co:['CO',tr("units.pollution")],dust:[tr("air.dust"),tr("units.pollution")],eaqi:['EAQI','']};}localizedMetrics();
 const state={stations:[],station:localStorage.getItem('station')||'',tab:'weather',snapshot:null,obs:null,model:null,uv:null,air:null,marine:null,forecast:null,ai:null,health:null,errors:[],generation:0,location:null,elevation:null};
 // Elevation is no longer entered by hand; drop the value older builds stored.
 localStorage.removeItem('altitude');
@@ -149,7 +149,7 @@ function render(){
   html+=`<div class="temperature-feels"><div class="label">${tr("weather.feelsLike")}</div><div class="feels">`;
   html+=card('utci_shade',pos.elevation>0?tr("weather.shade"):'',num(s.utci_shade),'°C','',stressClass(s.utci_shade),'',`${tr(pos.elevation>0?'weather.feelsShade':'weather.feelsLike')} · ${num(s.utci_shade)} °C${stress(s.utci_shade)?' · '+stress(s.utci_shade):''}`);
   if(pos.elevation>0)html+=card('utci_sun',tr("weather.sun"),num(s.utci_sun),'°C','',stressClass(s.utci_sun),'',`${tr("weather.feelsSun")} · ${num(s.utci_sun)} °C${stress(s.utci_sun)?' · '+stress(s.utci_sun):''}`);
-  html+=card('net','NET¹',num(s.net),'°C','','feels-net');html+=`</div></div><div class="temperature-footnote">${tr("weather.netFootnote")}</div></div>`;
+  html+=card('net','NET¹',num(s.net),'°C','','feels-net');html+=`</div><div class="temperature-footnote">${tr("weather.netFootnote")}</div></div></div>`;
   html+='<div class="weather-primary-row">';
   const wind=s.wind10??s.wind2;
   const modelDirection=latest(state.model,'wdir',current,7200);
@@ -176,10 +176,11 @@ function render(){
  }else if(state.tab==='air'){
   html=`<div class="sectiontitle"><h2>${tr("nav.air")}</h2><small>${tr("air.hourly")}</small></div><div class="grid">`;
   const measuredSources=new Map(),modelCards=[];
-  for(const p of POLLUTANTS){
+  for(const p of AIR_CARDS){
    const measured=latest(state.air,p,current,7200),cams=latest(state.air,p+'_cams',current,7200),source=state.air?.sources?.[p];
    const value=measured?.value??cams?.value;
-   html+=card(p,metrics[p][0],num(value),metrics[p][1],'',`air-card ${airClass(p,value)}`,'',`${metrics[p][0]} · ${num(value)} ${metrics[p][1]} · ${airLevel(p,value)}`);
+   const shown=p==='eaqi'?num(value,0):num(value);
+   html+=card(p,metrics[p][0],shown,metrics[p][1],p==='eaqi'&&value!=null?airLevel(p,value):'',`air-card ${airClass(p,value)}`,'',`${metrics[p][0]} · ${shown} ${metrics[p][1]} · ${airLevel(p,value)}`);
    if(measured&&source){
     const key=tr('air.stationSource',{station:airStation(source),kind:sourceKind(source.kind),km:num(source.km)});
     const pollutants=measuredSources.get(key)||[];pollutants.push(metrics[p][0]);measuredSources.set(key,pollutants);
@@ -372,6 +373,9 @@ function drawChart(key){
   const solar=line(tr("weather.sun"),points(state.obs,'utci_sun',from,t),false,0,false,sun);solar.lineStyle.type='dashed';
   series=[line(tr("weather.shade"),points(state.obs,'utci_shade',from,t),false,0,false,shade),solar,line(tr("weather.shade"),points(state.model,'utci_shade',t,to),true,0,false,shade),line(tr("weather.sun"),points(state.model,'utci_sun',t,to),true,0,false,sun)];
   note=tr('chart.utciHelp')+' '+sourceRad(state.obs?.rad_src)+'.';
+ }else if(AIR_MODEL_ONLY.includes(key)){
+  series=[line(tr("chart.camsPast"),points(state.air,key+'_cams',from,cut)),line(tr("chart.camsForecast"),points(state.air,key+'_cams',t,to),true)];
+  note=tr("chart.camsOnly");
  }else if(POLLUTANTS.includes(key)){
   const src=state.air?.sources?.[key];
   series=[line(tr("chart.dliObserved"),points(state.air,key,from,t)),line(tr("chart.camsPast"),points(state.air,key+'_cams',from,cut),false,0,false,'#9caec4'),line(tr("chart.camsForecast"),points(state.air,key+'_cams',t,to),true,0,false,'#6685ad')];
@@ -410,7 +414,8 @@ function drawChart(key){
   if(key==='p_station')note+=' '+tr('chart.pressureLevelsHelp');
  }
  const has=series.some(s=>s.data.some(p=>p[1]!=null));
- $('charttitle').textContent=key==='utci_shade'?tr("weather.feelsBoth"):metrics[key][0];$('chartsubtitle').textContent=name(st.code)+' · '+(key==='sst'?tr("chart.sevenDays"):key==='sun'?tr("chart.solarHourly"):tr("chart.24past24forecast"));
+ $('charttitle').textContent=key==='utci_shade'?tr("weather.feelsBoth"):metrics[key][0];// Air pollutants explain what the substance is; the station and source are in the note below.
+ $('chartsubtitle').textContent=AIR_CARDS.includes(key)?tr('air.about.'+key):name(st.code)+' · '+(key==='sst'?tr("chart.sevenDays"):key==='sun'?tr("chart.solarHourly"):tr("chart.24past24forecast"));
  const modelAge=state.model?.fetched?Math.floor(t/1000)-state.model.fetched:0;
  if(modelAge>7200&& !['sun','sst'].includes(key))note+=' '+tr('chart.staleModel');
  $('chartnote').textContent=has?note:tr('chart.noData')+' '+note;
