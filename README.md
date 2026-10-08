@@ -122,6 +122,6 @@ npm audit
 
 ## Источники
 
-CyDoM (наблюдения/море/бюллетени/PDF), DLI (измерения воздуха), Open-Meteo (погода), CAMS / Copernicus через Open-Meteo (UV и воздух), © OpenStreetMap contributors. Использование бесплатного Open-Meteo endpoint имеет лимиты и условия; до коммерческого распространения выбрать подходящий план. Лицензию исходного Python кода aranet4 нужно определить до распространения. Зависимости npm сохраняют свои лицензии.
+CyDoM (наблюдения/море/бюллетени/PDF), DLI (измерения воздуха), Open-Meteo (погода), CAMS / Copernicus через Open-Meteo (UV и воздух), © OpenStreetMap contributors. Использование бесплатного Open-Meteo endpoint имеет лимиты и условия; до коммерческого распространения выбрать подходящий план. Код проекта распространяется по лицензии MIT ([LICENSE](LICENSE)); условия источников данных и атрибуция — в [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Зависимости npm сохраняют свои лицензии.
 
 Развёртывание сервера, магазин, release signing и iOS build — отдельные этапы. Все изменения пока локальные, без commit и push.
