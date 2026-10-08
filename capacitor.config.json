@@ -1,5 +1,5 @@
 {
-  "appId": "cy.weather.app",
+  "appId": "io.github.darkpatrick.kairo",
   "appName": "Kairo",
   "webDir": "mobile/dist",
   "appendUserAgent": "Kairo/1.0 (egor.semin.cy@gmail.com)",

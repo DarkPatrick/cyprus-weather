@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "cy.weather.app"
+    namespace = "io.github.darkpatrick.kairo"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "cy.weather.app"
+        applicationId "io.github.darkpatrick.kairo"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

@@ -2,6 +2,6 @@
 <resources>
     <string name="app_name">Kairo</string>
     <string name="title_activity_main">Kairo</string>
-    <string name="package_name">cy.weather.app</string>
-    <string name="custom_url_scheme">cy.weather.app</string>
+    <string name="package_name">io.github.darkpatrick.kairo</string>
+    <string name="custom_url_scheme">io.github.darkpatrick.kairo</string>
 </resources>

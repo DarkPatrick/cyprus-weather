@@ -251,7 +251,7 @@ AI forecast header now has a small last-update timestamp from the document `issu
 
 ### Kairo Android launcher (2026-10-08)
 
-- Launcher and activity labels changed to Kairo; Capacitor appName also changed. Application id remains cy.weather.app for updates to the existing installation.
+- Launcher and activity labels changed to Kairo; Capacitor appName also changed. Application id was later changed to io.github.darkpatrick.kairo for store publication (a fresh install is required).
 - Verified Cyprus coastline artwork installed as the adaptive foreground vector, with ivory background and copper/teal mark. Legacy and round PNGs generated for all five densities. Authoritative artwork, extracted geographic polygon and provenance live under assets/branding; scripts/generate-launcher-icons.py reproducibly creates resources via rsvg-convert.
 - All coastline vertices preserved. Artwork fits the adaptive 66dp safe circle in the 108dp foreground viewport: maximum radius 298.8 of 312.9 source pixels. Round-mask preview visually checked.
 - Android debug build succeeded. aapt dump badging confirmed application-label Kairo and adaptive icon resources. Updated output/kairo-debug.apk and the existing output/cyprus-weather-debug.apk. Physical-device installation not performed.
