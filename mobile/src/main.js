@@ -4,6 +4,7 @@ import {t as tr,getLanguage,setLanguage,locale,resolveLanguage} from './i18n.js'
 import {bindImageShrink} from './image-shrink.js';
 import {levelView,chartLevel} from './chart-levels.js';
 import {cachedLoader,DATA_TTL} from './data-cache.js';
+import {gpsElevation,NEAR_STATION_KM} from './elevation.js';
 import './style.css';
 import {windStrength,pressureIndicator,uvLevel,todayUvMaximum} from './weather-labels.js';
 import {airLevel,airClass} from './air-level.js';
@@ -29,7 +30,9 @@ const time=t=>t==null?'—':new Date(t).toLocaleTimeString(locale(),{timeZone:'A
 const date=t=>t==null?'—':new Date(t).toLocaleString(locale(),{timeZone:'Asia/Nicosia',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 const base=(import.meta.env.VITE_API_BASE||'').replace(/\/$/,'');
 let metrics;function localizedMetrics(){metrics={temp:[tr("weather.temperature"),'°C'],utci_shade:[tr("weather.shadeUtci"),'°C'],utci_sun:[tr("weather.sunUtci"),'°C'],net:['NET','°C'],wind10:[tr("weather.wind"),tr("units.wind")],rh:[tr("weather.humidity"),'%'],rain:[tr("weather.precipitation"),tr("units.rain")],p_station:[tr("weather.pressure"),tr("units.pressure")],sst:[tr("weather.seaTemperature"),'°C'],sun:[tr("sun.elevation"),'°'],radiation:[tr("sun.radiationChart"),''],pm25:['PM2.5',tr("units.pollution")],pm10:['PM10',tr("units.pollution")],no2:['NO₂',tr("units.pollution")],o3:['O₃',tr("units.pollution")],so2:['SO₂',tr("units.pollution")],co:['CO',tr("units.pollution")]};}localizedMetrics();
-const state={stations:[],station:localStorage.getItem('station')||'',tab:'weather',snapshot:null,obs:null,model:null,uv:null,air:null,marine:null,forecast:null,ai:null,health:null,errors:[],generation:0,altitude:localStorage.getItem('altitude')||'',location:null};
+const state={stations:[],station:localStorage.getItem('station')||'',tab:'weather',snapshot:null,obs:null,model:null,uv:null,air:null,marine:null,forecast:null,ai:null,health:null,errors:[],generation:0,location:null,elevation:null};
+// Elevation is no longer entered by hand; drop the value older builds stored.
+localStorage.removeItem('altitude');
 let positionRequest=null,locationMarker=null,shellEvents=false,languageGeneration=0;
 let map=null,layer=null,boltLayer=null,boltCanvas=null,bolts=null,activeBolts=[],history=null,historyEnd=null,mapTimer=null,chart=null,chartKey=null;
 const now=()=>Date.now();
@@ -83,7 +86,7 @@ function fillShell(){
  <div class="toolbar"><select id="station" aria-label="${tr("aria.weatherStation")}"><option>${tr("common.loadingStations")}</option></select><button class="icon" id="locate" aria-label="${tr("aria.nearestStation")}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.5"/></svg></button><button class="icon" id="refresh" aria-label="${tr("aria.refresh")}">↻</button></div>
  <details class="mapwrap" id="mapwrap"><summary>${tr("map.stations")} <span class="muted">${tr("map.24hours")}</span></summary><div id="map" aria-label="${tr("map.cyprus")}"></div><div class="timeline"><div class="player"><button id="mapplay" aria-label="${tr("map.play")}" aria-pressed="false">▶</button><input id="timeline" aria-label="${tr("map.observationTime")}" type="range" min="0" max="144" value="144" step="1"></div><div class="mapoptions"><span id="maptime">${tr("common.now")}</span><label title="${tr("map.windHelp")}"><input type="checkbox" id="mapwind"> ${tr("weather.wind")}</label></div><div class="maplegend" aria-label="${tr("map.temperatureScale")}"><span>0°</span><span>12°</span><span>20°</span><span>28°</span><span>36°</span></div><div class="map-events"><div id="maprain"></div><div id="mapbolts"></div><div class="map-attribution">${tr("map.lightningAttribution",{year:new Date().getFullYear()})}</div><button id="mapshowbolts" class="mapshowbolts" hidden>${tr("map.allLightning")}</button></div></div></details>
  <div id="status" class="status" role="status">${tr("common.loading")}</div><div id="errors" role="alert"></div><section id="content"></section>
- <footer class="footer"><span class="footer-caption">${tr("sources.caption")}</span><details><summary>${tr("common.sourcesSettings")}</summary><p>${tr("sources.main")}</p><p class="attribution-source">${tr("sources.attribution",{year:new Date().getFullYear()})}</p><p class="lightning-source">${tr("sources.lightning",{year:new Date().getFullYear()})} <a href="https://www.eumetsat.int/legal-framework/data-policy" target="_blank" rel="noreferrer">${tr("sources.eumetsatPolicy")}</a>.</p><div class="altitude"><label>${tr("settings.altitude")} <input id="altitude" type="number" min="-500" max="4000" placeholder="${tr("common.auto")}" value="${esc(state.altitude)}"></label><button id="savealt">${tr("common.apply")}</button><p>${tr("settings.altitudeHelp")}</p></div><p><a href="https://www.dom.org.cy/" target="_blank" rel="noreferrer">CyDoM</a> · <a href="https://www.airquality.dli.mlsi.gov.cy/" target="_blank" rel="noreferrer">DLI</a> · <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></p></details></footer></main>
+ <footer class="footer"><span class="footer-caption">${tr("sources.caption")}</span><details><summary>${tr("common.sourcesSettings")}</summary><p>${tr("sources.main")}</p><p class="attribution-source">${tr("sources.attribution",{year:new Date().getFullYear()})}</p><p class="lightning-source">${tr("sources.lightning",{year:new Date().getFullYear()})} <a href="https://www.eumetsat.int/legal-framework/data-policy" target="_blank" rel="noreferrer">${tr("sources.eumetsatPolicy")}</a>.</p><p class="location-help">${tr("settings.altitudeHelp")}</p><p><a href="https://www.dom.org.cy/" target="_blank" rel="noreferrer">CyDoM</a> · <a href="https://www.airquality.dli.mlsi.gov.cy/" target="_blank" rel="noreferrer">DLI</a> · <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></p></details></footer></main>
  <nav class="tabs" role="tablist" aria-label="${tr("nav.sections")}"><button data-tab="weather" role="tab" aria-selected="true"><b>☁</b>${tr("nav.weather")}</button><button data-tab="sun" role="tab" aria-selected="false"><b>☀</b>${tr("nav.sun")}</button><button data-tab="air" role="tab" aria-selected="false"><b>≋</b>${tr("nav.air")}</button><button data-tab="forecast" role="tab" aria-selected="false"><b>▤</b>${tr("nav.forecast")}</button></nav>
  <dialog id="detail"><button class="close" id="close" aria-label="${tr("aria.closeChart")}">×</button><h2 id="charttitle"></h2><p id="chartsubtitle" class="muted"></p><div id="chart" class="chart"></div><div id="chartlevels" class="chart-levels"></div><p id="chartnote" class="chartnote"></p></dialog><dialog id="forecastdetail"><button class="close" id="forecastclose" aria-label="${tr("aria.closeForecast")}">×</button><h2 id="forecasttitle"></h2><div id="forecastbody" class="forecast-body"></div></dialog><dialog id="languagedetail" class="language-dialog"><button class="close" id="languageclose" aria-label="${tr("language.close")}">×</button><h2>${tr("language.select")}</h2><div class="language-options">${[["system",tr("language.system")],["en","English"],["el","Ελληνικά"],["ru","Русский"]].map(([code,label])=>`<button type="button" data-language="${code}" lang="${code==='system'?getLanguage():code}" aria-pressed="${String((localStorage.getItem('language')||'system')===code)}">${label}<span aria-hidden="true">${(localStorage.getItem('language')||'system')===code?'✓':''}</span></button>`).join('')}</div></dialog>`;
  applyTheme();
@@ -106,7 +109,6 @@ function fillShell(){
  $('close').onclick=()=>$('detail').close();
  $('detail').addEventListener('close',()=>{chart?.dispose();chart=null;chartKey=null;});
  $('detail').addEventListener('click',e=>{if(e.target===$('detail')){const r=$('detail').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('detail').close();}});
- $('savealt').onclick=()=>{const v=$('altitude').value;if(v!==''&&(!Number.isFinite(+v)||+v < -500||+v > 4000)){alert(tr("settings.altitudeRange"));return;}state.altitude=v;localStorage.setItem('altitude',v);loadStation();};
  if(!shellEvents){window.addEventListener('resize',()=>chart?.resize());
  if(Capacitor.isNativePlatform())App.addListener('backButton',()=>{if($('languagedetail').open)$('languagedetail').close();else if($('forecastdetail').open)$('forecastdetail').close();else if($('detail').open)$('detail').close();else if($('mapwrap').open)$('mapwrap').open=false;else App.exitApp();});shellEvents=true;}
 }
@@ -136,7 +138,6 @@ setInterval(renderWarnings,60000);
 function render(){
  renderWarnings();
  $('app').dataset.tab=state.tab;
- $('altitude').closest('.altitude').hidden=state.tab!=='weather';
  document.querySelector('.footer details > summary').textContent=state.tab==='weather'?tr("common.sourcesSettings"):tr("common.sources");
  const st=station();let html='';
  if(!st){$('errors').innerHTML=state.errors.map(e=>`<div class="error">${esc(e)}</div>`).join('');$('content').innerHTML=`<div class="empty">${tr("error.noStations")}</div>`;return;}
@@ -254,7 +255,8 @@ async function loadStation(){
  const gen=++state.generation;
  const window=rollingWindow(now()),start=Math.floor(window.from/1000),end=Math.floor(window.to/1000),q=`station=${encodeURIComponent(st.code)}&from=${start}&to=${end}`;
  state.errors=[];
- const jobs=[['snapshot','weather/snapshot?station='+encodeURIComponent(st.code)+(state.altitude!==''?'&altitude='+encodeURIComponent(state.altitude):'')],['obs','weather/readings?'+q+'&agg=hour'],['model','weather/model?'+q],['uv',`weather/uv?station=${encodeURIComponent(st.code)}&from=${Math.floor(now()/1000)-26*3600}&to=${end}`],['air','weather/air?'+q],['marine','weather/marine'],['forecast','weather/forecast'],['ai','weather/ai-forecast'],['health','health']];
+ const elevation=state.elevation=userElevation();
+ const jobs=[['snapshot','weather/snapshot?station='+encodeURIComponent(st.code)+(elevation!=null?'&altitude='+elevation:'')],['obs','weather/readings?'+q+'&agg=hour'],['model','weather/model?'+q],['uv',`weather/uv?station=${encodeURIComponent(st.code)}&from=${Math.floor(now()/1000)-26*3600}&to=${end}`],['air','weather/air?'+q],['marine','weather/marine'],['forecast','weather/forecast'],['ai','weather/ai-forecast'],['health','health']];
  const results=await Promise.allSettled(jobs.map(([,url])=>api(url)));
  if(gen!==state.generation)return;
  results.forEach((r,i)=>{const key=jobs[i][0];if(r.status==='fulfilled')state[key]=r.value;else{state[key]=null;state.errors.push(tr('error.network'));}});
@@ -263,6 +265,13 @@ async function loadStation(){
  if(p){try{state.pressureObs=await api(`weather/readings?station=${encodeURIComponent(p.source_station)}&from=${start}&to=${end}&agg=hour`);}catch(e){state.errors.push(tr('error.pressureHistory',{error:tr('error.network')}));}}
  if(gen!==state.generation)return;
  render();if(map)drawMap();if(chartKey)drawChart(chartKey);
+}
+// Sea-level elevation from a precise GPS fix near the selected station, else null
+// (pressure is then computed at the station's own elevation).
+function userElevation(){
+ const st=station(),elevation=gpsElevation(state.location);
+ if(elevation==null||!st)return null;
+ return L.latLng(state.location.latitude,state.location.longitude).distanceTo([st.lat,st.lon])<=NEAR_STATION_KM*1000?elevation:null;
 }
 function requestPosition(){
  if(positionRequest)return positionRequest;
@@ -291,6 +300,7 @@ async function applyPosition(p){
  const here=L.latLng(p.coords.latitude,p.coords.longitude);
  const nearest=fresh.reduce((best,s)=>here.distanceTo([s.lat,s.lon])<here.distanceTo([best.lat,best.lon])?s:best);
  if(nearest.code!==state.station)await selectStation(nearest.code);
+ else if(userElevation()!==state.elevation)await loadStation();
  showLocation();
 }
 async function locate(){
