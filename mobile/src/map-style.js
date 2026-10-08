@@ -17,7 +17,7 @@ export function windArrow(reading){
  if(reading?.wdir==null||speed==null||speed<.3)return '';
  const start=16,len=Math.min(8+speed*2.5,30),r=start+len+4,tip=r-start-len,base=r-start;
  const path=`M${r} ${base} L${r} ${tip+5} M${r-4} ${tip+6} L${r} ${tip} L${r+4} ${tip+6}`;
- return `<svg class="mapwind" width="${r*2}" height="${r*2}" viewBox="0 0 ${r*2} ${r*2}" style="transform:translate(-50%,-50%) rotate(${(reading.wdir+180)%360}deg)" aria-hidden="true"><path d="${path}" stroke="white" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="${path}" stroke="#29483f" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+ return `<svg class="mapwind" width="${r*2}" height="${r*2}" viewBox="0 0 ${r*2} ${r*2}" style="transform:translate(-50%,-50%) rotate(${(reading.wdir+180)%360}deg)" aria-hidden="true"><path d="${path}" stroke="white" stroke-width="4" fill="none" stroke-linecap="round" stroke-linejoin="round"/><path d="${path}" stroke="#14324a" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 }
 
 export function rainLevel(mm30){

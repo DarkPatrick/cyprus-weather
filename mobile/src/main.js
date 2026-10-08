@@ -75,7 +75,7 @@ function applyTheme(){
  $('theme').innerHTML=dark?'<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M20.5 14.2A8.6 8.6 0 0 1 9.8 3.5a8.8 8.8 0 1 0 10.7 10.7Z"/></svg>':'<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>';
  $('theme').setAttribute('aria-label',dark?tr("theme.light"):tr("theme.dark"));
  $('theme').setAttribute('aria-pressed',String(dark));
- document.querySelector('meta[name="theme-color"]').content=dark?'#121c1b':'#f6f7f2';
+ document.querySelector('meta[name="theme-color"]').content=dark?'#0f1c26':'#f7f4ee';
 }
 function fillShell(){
  $('app').innerHTML=`<main class="shell"><header><div><div class="eyebrow">${tr("brand.subtitle")}</div><h1>${tr("brand.name")}</h1></div><div class="header-actions"><button class="brandmark language-toggle" id="language" type="button" aria-label="${tr("language.select")}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 7h14M5 17h14"/></svg></button><button class="brandmark" id="theme" type="button" aria-label="${tr("theme.dark")}" aria-pressed="false"><span aria-hidden="true">☀</span></button></div></header>
@@ -282,7 +282,7 @@ function requestPosition(){
 function showLocation(){
  if(!map||!state.location)return;
  locationMarker?.remove();
- locationMarker=L.circleMarker([state.location.latitude,state.location.longitude],{radius:6,color:'#357ab7'}).addTo(map).bindTooltip(tr("geo.youAreHere"));
+ locationMarker=L.circleMarker([state.location.latitude,state.location.longitude],{radius:6,color:'#1f5f8b'}).addTo(map).bindTooltip(tr("geo.youAreHere"));
 }
 async function applyPosition(p){
  state.location=p.coords;
@@ -348,8 +348,8 @@ function drawChart(key){
  if(key==='sun'){
   const w=sunWindow(t,st.lat,st.lon);from=w.from;to=w.to;
   const pts=[];for(let x=from;x<=to;x+=HOUR)pts.push([x,sunPosition(x,st.lat,st.lon).elevation]);
-  series=[line(tr("sun.elevationSeries"),pts,false,0,false,'#c6983e'),{name:tr("common.now"),type:'scatter',data:[[t,sunPosition(t,st.lat,st.lon).elevation]],symbolSize:11,itemStyle:{color:'#236d58'}}];
-  series[0].markLine={symbol:'none',silent:true,data:[[0,tr("sun.horizon")],[-6,tr("sun.civilTwilightLine")],[-12,tr("sun.nauticalTwilightLine")],[-18,tr("sun.astronomicalTwilightLine")]].map(([height,label])=>({yAxis:height,name:label,lineStyle:{color:height===0?'#658574':'#a7b4ad',type:'dashed'},label:{formatter:label,position:'insideStartTop',fontSize:9,lineHeight:10,color:dark?'#bbd0c8':'#536b60',backgroundColor:dark?'#1b2825':'#fcfdf9'}}))};
+  series=[line(tr("sun.elevationSeries"),pts,false,0,false,'#c98a2b'),{name:tr("common.now"),type:'scatter',data:[[t,sunPosition(t,st.lat,st.lon).elevation]],symbolSize:11,itemStyle:{color:'#1f5f8b'}}];
+  series[0].markLine={symbol:'none',silent:true,data:[[0,tr("sun.horizon")],[-6,tr("sun.civilTwilightLine")],[-12,tr("sun.nauticalTwilightLine")],[-18,tr("sun.astronomicalTwilightLine")]].map(([height,label])=>({yAxis:height,name:label,lineStyle:{color:height===0?'#5e7180':'#a9b4bc',type:'dashed'},label:{formatter:label,position:'insideStartTop',fontSize:9,lineHeight:10,color:dark?'#b3c3cf':'#4f6474',backgroundColor:dark?'#14232e':'#fcfbf8'}}))};
   note='';
  }else if(key==='sst'){
   from=t-7*24*HOUR;to=t;series=[line(tr("chart.seaSeries"),points(state.marine?.sst,'sst',from,to,0,86400))];note=tr("chart.seaHelp");
@@ -358,7 +358,7 @@ function drawChart(key){
   series=[line(tr("chart.radiationObserved"),points(state.obs,'radiation_observed',from,t)),line(tr("chart.radiationModel"),points(state.model,'rad_global',t,to,-1800),true),line(tr("chart.uvCams"),points(state.uv,'uv',from,cut),false,1,false,'#a383b3'),line(tr("chart.uvForecast"),points(state.uv,'uv',t,to),true,1,false,'#a383b3')];
   note=tr('chart.radiationHelp',{source:sourceRad(state.obs?.rad_src)});
  }else if(key==='utci_shade'||key==='utci_sun'){
-  const shade=dark?'#79c9b0':'#2d7865',sun=dark?'#e3bc65':'#c6983e';
+  const shade=dark?'#7fb8de':'#1f5f8b',sun=dark?'#e6b95a':'#c98a2b';
   const solar=line(tr("weather.sun"),points(state.obs,'utci_sun',from,t),false,0,false,sun);solar.lineStyle.type='dashed';
   series=[line(tr("weather.shade"),points(state.obs,'utci_shade',from,t),false,0,false,shade),solar,line(tr("weather.shade"),points(state.model,'utci_shade',t,to),true,0,false,shade),line(tr("weather.sun"),points(state.model,'utci_sun',t,to),true,0,false,sun)];
   note=tr('chart.utciHelp')+' '+sourceRad(state.obs?.rad_src)+'.';
@@ -393,10 +393,10 @@ function drawChart(key){
  if(levels&&levelSeries[0]){
   axes[levelAxis]={...axes[levelAxis],min:levels.min,max:levels.max};
   levelSeries[0].markArea={silent:true,label:{show:false},data:levels.bands.map(b=>[
-   {yAxis:b.from,itemStyle:{color:b.color,opacity:dark?.46:.25},label:{show:(b.to-b.from)/(levels.max-levels.min)>.08,formatter:b.label,position:'insideTopRight',fontSize:9,color:dark?'#eff6f1':'#284639',backgroundColor:dark?'rgba(18,28,27,.7)':'rgba(252,253,249,.75)',padding:[1,3],borderRadius:3}},{yAxis:b.to}
+   {yAxis:b.from,itemStyle:{color:b.color,opacity:dark?.46:.25},label:{show:(b.to-b.from)/(levels.max-levels.min)>.08,formatter:b.label,position:'insideTopRight',fontSize:9,color:dark?'#e8eef2':'#14324a',backgroundColor:dark?'rgba(15,28,38,.7)':'rgba(252,251,248,.75)',padding:[1,3],borderRadius:3}},{yAxis:b.to}
   ])};
   const target=levelSeries[0];
-  target.markLine={...target.markLine,symbol:'none',silent:true,data:[...(target.markLine?.data||[]),...levels.bands.slice(0,-1).map(b=>({yAxis:b.to,label:{show:false},lineStyle:{color:dark?'rgba(230,240,234,.3)':'rgba(40,70,57,.2)',type:'solid',width:1}}))]};
+  target.markLine={...target.markLine,symbol:'none',silent:true,data:[...(target.markLine?.data||[]),...levels.bands.slice(0,-1).map(b=>({yAxis:b.to,label:{show:false},lineStyle:{color:dark?'rgba(232,238,242,.3)':'rgba(20,50,74,.2)',type:'solid',width:1}}))]};
   if(key==='p_station')note+=' '+tr('chart.pressureLevelsHelp');
  }
  const has=series.some(s=>s.data.some(p=>p[1]!=null));
@@ -406,7 +406,7 @@ function drawChart(key){
  $('chartnote').textContent=has?note:tr('chart.noData')+' '+note;
  $('chartnote').hidden=!$('chartnote').textContent;
  series.push({name:tr("chart.nowBoundary"),type:'line',data:[],markLine:{symbol:'none',silent:true,label:{formatter:tr("common.nowLower")},lineStyle:{color:'#6a867b',type:'dotted'},data:[{xAxis:t}]}});
- chart.setOption({backgroundColor:'transparent',color:dark?['#79c9b0','#91b8d9','#e3bc65','#c6a1cf']:['#2d7865','#7296b6','#cba144','#b089b8'],animation:false,tooltip:{trigger:'axis',confine:true,extraCssText:'max-width:min(280px,80vw);white-space:normal;overflow-wrap:anywhere;',valueFormatter:v=>num(v),formatter:params=>`${date(params[0]?.value?.[0])}<br>`+params.filter(p=>p.value?.[1]!=null).map(p=>`${p.marker}${esc(p.seriesName)}: ${num(p.value[1])}${chartLevel(key,p.value[1],height)&&(key!=='radiation'||p.seriesName.includes('UV'))?' · '+esc(chartLevel(key,p.value[1],height)):''}`).join('<br>')},legend:{type:'scroll',bottom:0,data:[...new Set(series.filter(s=>s.name!==tr("chart.nowBoundary")).map(s=>s.name))],textStyle:{fontSize:10}},grid:{left:55,right:axes.length>1?50:20,top:35,bottom:72},xAxis:{type:'time',min:from,max:to,minInterval:key==='sst'?24*HOUR:HOUR,axisLabel:{formatter:v=>key==='sst'?new Date(v).toLocaleDateString(locale(),{timeZone:'Asia/Nicosia',day:'2-digit',month:'2-digit'}):time(v),fontSize:10},splitLine:{show:false}},yAxis:axes,dataZoom:[{type:'inside',filterMode:'none'}],series});
+ chart.setOption({backgroundColor:'transparent',color:dark?['#7fb8de','#e08a62','#a3b46a','#d07fa8']:['#1f5f8b','#c4683f','#6f7f3e','#b3427a'],animation:false,tooltip:{trigger:'axis',confine:true,extraCssText:'max-width:min(280px,80vw);white-space:normal;overflow-wrap:anywhere;',valueFormatter:v=>num(v),formatter:params=>`${date(params[0]?.value?.[0])}<br>`+params.filter(p=>p.value?.[1]!=null).map(p=>`${p.marker}${esc(p.seriesName)}: ${num(p.value[1])}${chartLevel(key,p.value[1],height)&&(key!=='radiation'||p.seriesName.includes('UV'))?' · '+esc(chartLevel(key,p.value[1],height)):''}`).join('<br>')},legend:{type:'scroll',bottom:0,data:[...new Set(series.filter(s=>s.name!==tr("chart.nowBoundary")).map(s=>s.name))],textStyle:{fontSize:10}},grid:{left:55,right:axes.length>1?50:20,top:35,bottom:72},xAxis:{type:'time',min:from,max:to,minInterval:key==='sst'?24*HOUR:HOUR,axisLabel:{formatter:v=>key==='sst'?new Date(v).toLocaleDateString(locale(),{timeZone:'Asia/Nicosia',day:'2-digit',month:'2-digit'}):time(v),fontSize:10},splitLine:{show:false}},yAxis:axes,dataZoom:[{type:'inside',filterMode:'none'}],series});
 }
 async function periodicRefresh(){
  try{if(!document.hidden)await refresh();}
