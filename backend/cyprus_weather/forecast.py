@@ -8,7 +8,7 @@ The text is translated to Russian sentence by sentence, each sentence once:
 consecutive issues repeat most of their wording, which keeps the volume inside
 the free translation quotas.
 
-    aranet-forecast            # timer: every 30 minutes
+    python -m cyprus_weather.forecast            # timer: every 30 minutes
 """
 
 import argparse
@@ -28,11 +28,11 @@ from datetime import datetime
 from . import dom, weather
 from .config import get_settings, load_env_file
 
-log = logging.getLogger("aranet.forecast")
+log = logging.getLogger("cyprus_weather.forecast")
 
 BULLETIN_URL = "https://www.dom.org.cy/FORECAST/public_{}.html"
 ISSUES = {"a": "A", "b": "B", "c": "C"}
-UA = {"User-Agent": "aranet-monitor/0.1 (+https://github.com/DarkPatrick/aranet4)"}
+UA = {"User-Agent": "cyprus-weather/0.1"}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS bulletins (
@@ -440,10 +440,10 @@ def latest(conn) -> dict:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Forecast bulletins from dom.org.cy, translated to Russian")
     parser.add_argument("--config", help="config.env path (default: ./config.env)")
-    parser.add_argument("--db", help="SQLite path, overrides ARANET_WEATHER_DB")
+    parser.add_argument("--db", help="SQLite path, overrides WEATHER_DB")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
-    load_env_file(args.config or os.environ.get("ARANET_CONFIG", "config.env"))
+    load_env_file(args.config or os.environ.get("WEATHER_CONFIG", "config.env"))
     collect(args.db or get_settings(args.config).weather_db)
     return 0
 

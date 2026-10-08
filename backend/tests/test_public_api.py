@@ -3,7 +3,7 @@ import threading
 from urllib.request import urlopen
 from urllib.error import HTTPError
 import pytest
-from aranet_monitor import weather, uv, air
+from cyprus_weather import weather, uv, air
 from domain import summary, adjust_pressure, pressure
 from server import make_server, initialize
 

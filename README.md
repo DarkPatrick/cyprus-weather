@@ -103,7 +103,7 @@ API читает `data/ai/latest.json` по формату aranet4: `{issued, mo
 Генератор перенесён и требует явно заданной команды/авторизованного CLI. Автоматически при сборе/открытии приложения он не запускается:
 
 ```sh
-PYTHONPATH=backend .venv/bin/python -m aranet_monitor.ai_forecast --dry-run
+PYTHONPATH=backend .venv/bin/python -m cyprus_weather.ai_forecast --dry-run
 # Сначала проверить prompt, затем вручную задать --cmd '<model CLI command>'
 ```
 

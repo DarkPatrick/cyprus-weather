@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 
 import pytest
 
-from aranet_monitor import thermal, uv, weather
+from cyprus_weather import thermal, uv, weather
 
 # reference values from pythermalcomfort.models.utci (the published polynomial)
 @pytest.mark.parametrize("ta, tmrt, v, rh, expected", [

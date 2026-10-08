@@ -3,7 +3,7 @@ import argparse
 import logging
 import time
 import threading
-from aranet_monitor import weather, uv, air, dom, forecast
+from cyprus_weather import weather, uv, air, dom, forecast
 import model
 from server import initialize
 

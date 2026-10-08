@@ -6,7 +6,7 @@ from datetime import datetime
 
 import pytest
 
-from aranet_monitor import agg, weather
+from cyprus_weather import agg, weather
 
 T = lambda *a: int(datetime(*a, tzinfo=weather.LOCAL_TZ).timestamp())
 

@@ -8,7 +8,7 @@ from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
-from aranet_monitor import weather, uv, air, dom, forecast, agg
+from cyprus_weather import weather, uv, air, dom, forecast, agg
 import model
 import lightning_readings
 from domain import summary, pressure_source, pressure_at, recent_readings

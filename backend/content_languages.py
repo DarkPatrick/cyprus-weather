@@ -15,7 +15,7 @@ import logging
 from pathlib import Path
 import sqlite3
 import time
-from aranet_monitor import forecast, dom
+from cyprus_weather import forecast, dom
 
 LANGUAGES = ('ru', 'en', 'el')
 REGIONS = {

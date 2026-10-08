@@ -3,7 +3,7 @@ import threading
 import urllib.request
 from datetime import datetime
 
-from aranet_monitor import air, weather
+from cyprus_weather import air, weather
 
 DLI_SAMPLE = {"data": {
     "2026100423": {"date_time": "2026-10-04 23:00:00", "pollutant_6001": "4.94880600", "pollutant_5": "14.91550000",

@@ -3,7 +3,7 @@ import json
 import time
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
-from aranet_monitor import weather, thermal
+from cyprus_weather import weather, thermal
 
 VARS = {'temp':'temperature_2m','rh':'relative_humidity_2m','rain':'precipitation',
         'rain_probability':'precipitation_probability','wind10':'wind_speed_10m',

@@ -4,7 +4,7 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-from aranet_monitor import forecast, weather
+from cyprus_weather import forecast, weather
 
 FIX = Path(__file__).parent / "fixtures"
 

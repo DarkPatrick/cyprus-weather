@@ -1,3 +1,5 @@
+# Paths below belong to the existing aranet4 service on the server (its user, virtualenv,
+# public weather DB and AI directory). They are shared resources: keep them as they are.
 [Unit]
 Description=Prepare Kairo weather content translations
 After=network-online.target cyprus-weather-sync.service

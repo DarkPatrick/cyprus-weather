@@ -14,7 +14,7 @@ The same run stores the hourly global radiation of the weather model (Open-Meteo
 forecast API, best-match model) at each station: "feels like in the sun" falls back
 to it where no station nearby measures radiation.
 
-    aranet-uv                  # timer: hourly
+    python -m cyprus_weather.uv                  # timer: hourly
 """
 
 import argparse
@@ -30,11 +30,11 @@ import urllib.request
 from . import weather
 from .config import get_settings
 
-log = logging.getLogger("aranet.uv")
+log = logging.getLogger("cyprus_weather.uv")
 
 API = "https://air-quality-api.open-meteo.com/v1/air-quality"
 FORECAST_API = "https://api.open-meteo.com/v1/forecast"
-UA = {"User-Agent": "aranet-monitor/0.1 (+https://github.com/DarkPatrick/aranet4)"}
+UA = {"User-Agent": "cyprus-weather/0.1"}
 CHUNK = 30  # stations per request, keeps the URL short
 ALT_GAIN = 0.08  # UV increase per 1000 m of altitude
 
@@ -131,7 +131,7 @@ def collect(db_path: str) -> int:
     try:
         stations = [tuple(r) for r in conn.execute("SELECT code, lat, lon FROM stations ORDER BY code")]
         if not stations:
-            log.warning("no stations yet: run aranet-weather first")
+            log.warning("no stations yet: run python -m cyprus_weather.weather first")
             return 0
         n = 0
         for i in range(0, len(stations), CHUNK):
@@ -172,7 +172,7 @@ def readings(conn, station: str, ts_from: int | None = None, ts_to: int | None =
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="CAMS UV index per weather station (Open-Meteo)")
     parser.add_argument("--config", help="config.env path (default: ./config.env)")
-    parser.add_argument("--db", help="SQLite path, overrides ARANET_WEATHER_DB")
+    parser.add_argument("--db", help="SQLite path, overrides WEATHER_DB")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     try:

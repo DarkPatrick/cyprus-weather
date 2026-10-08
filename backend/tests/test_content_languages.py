@@ -4,7 +4,7 @@ from urllib.request import urlopen
 from unittest.mock import Mock
 
 import content_languages as languages
-from aranet_monitor import forecast
+from cyprus_weather import forecast
 from server import initialize, make_server
 
 

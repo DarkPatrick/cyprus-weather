@@ -13,8 +13,8 @@ dust and the European AQI.
 The dashboard shows, for the selected weather station, the model at its coordinates
 and, per pollutant, the nearest network station that measures it.
 
-    aranet-air                     # timer: hourly
-    aranet-air --since 2016-01-01  # backfill the measurements (resumable, 10 s per request)
+    python -m cyprus_weather.air                     # timer: hourly
+    python -m cyprus_weather.air --since 2016-01-01  # backfill the measurements (resumable, 10 s per request)
 """
 
 import argparse
@@ -32,11 +32,11 @@ from datetime import datetime, timedelta
 from . import weather
 from .config import get_settings
 
-log = logging.getLogger("aranet.air")
+log = logging.getLogger("cyprus_weather.air")
 
 DLI = "https://www.airquality.dli.mlsi.gov.cy/station_data/{id}/{start}/{end}"
 API = "https://air-quality-api.open-meteo.com/v1/air-quality"
-UA = {"User-Agent": "aranet-monitor/0.1 (+https://github.com/DarkPatrick/aranet4)"}
+UA = {"User-Agent": "cyprus-weather/0.1"}
 CHUNK = 30  # weather stations per Open-Meteo request
 DLI_CHUNK_DAYS = 60  # one station_data request covers at most this many days
 CRAWL_DELAY = 10  # s between requests to the DLI site, as its robots.txt asks
@@ -244,7 +244,7 @@ def store_model(conn, rows: list[dict]) -> int:
 def collect_model(conn) -> int:
     stations = [tuple(r) for r in conn.execute("SELECT code, lat, lon FROM stations ORDER BY code")]
     if not stations:
-        log.warning("no weather stations yet: run aranet-weather first")
+        log.warning("no weather stations yet: run python -m cyprus_weather.weather first")
         return 0
     # the first run also fills the past month, so the model can be compared with the measurements
     past = 1 if conn.execute("SELECT 1 FROM air_model LIMIT 1").fetchone() else 30
@@ -314,7 +314,7 @@ def first_ts(conn) -> int | None:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Air quality: DLI measurements + CAMS model per weather station")
     parser.add_argument("--config", help="config.env path (default: ./config.env)")
-    parser.add_argument("--db", help="SQLite path, overrides ARANET_WEATHER_DB")
+    parser.add_argument("--db", help="SQLite path, overrides WEATHER_DB")
     parser.add_argument("--since", help="only backfill the measurements back to this date (YYYY-MM-DD; "
                         "the history starts in 2016); resumable, ~10 s per request")
     args = parser.parse_args(argv)

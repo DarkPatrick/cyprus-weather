@@ -5,16 +5,16 @@ every 3 h), the weather service's bulletins and warnings, lightning by hour and 
 and the ECMWF IFS forecast (9 km, via Open-Meteo) for the key stations: the next 24 h
 hourly and the past 24 h every 3 h, so the model can see where ECMWF was off yesterday.
 The answer is JSON (a schema the CLI enforces), saved as <issued>.json and latest.json in
-ARANET_AI_DIR, which the dashboard serves.
+WEATHER_AI_DIR, which the dashboard serves.
 
 The model runs through a command line tool reading the prompt on stdin, by default Codex
-(ARANET_AI_CMD overrides it). The CLI's login belongs to a person's account, so this may
+(WEATHER_AI_CMD overrides it). The CLI's login belongs to a person's account, so this may
 run as another user than the dashboard: with --api it reads everything through the
 dashboard's own HTTP API instead of the database files.
 
-    aranet-ai-forecast                               # from the local databases
-    aranet-ai-forecast --api http://127.0.0.1:8091   # from a running dashboard
-    aranet-ai-forecast --dry-run                     # print the prompt only
+    python -m cyprus_weather.ai_forecast                               # from the local databases
+    python -m cyprus_weather.ai_forecast --api http://127.0.0.1:8091   # from a running dashboard
+    python -m cyprus_weather.ai_forecast --dry-run                     # print the prompt only
 """
 
 import argparse
@@ -37,7 +37,7 @@ from pathlib import Path
 from . import agg, dom, forecast, weather
 from .config import get_settings
 
-log = logging.getLogger("aranet.ai")
+log = logging.getLogger("cyprus_weather.ai")
 
 KEY_STATIONS = ["ATHALASSA", "ASTROMERITIS", "ATHIENOU", "LCLK", "CAVO_GRECO", "FRENAROS", "ZYGI", "LIMASSOL",
                 "KOURIS", "LCPH", "KATHIKAS", "POLIS", "KPYRGOS", "PRODROMOS", "TROODOS"]
@@ -47,7 +47,7 @@ ECMWF_VARS = ["temperature_2m", "relative_humidity_2m", "precipitation", "cloud_
               "wind_speed_10m", "wind_direction_10m", "wind_gusts_10m", "weather_code"]
 DEFAULT_CMD = ("codex exec --model gpt-6-sol --skip-git-repo-check --ephemeral --sandbox read-only "
                "--ignore-rules --color never")
-UA = {"User-Agent": "aranet-monitor/0.1 (+https://github.com/DarkPatrick/aranet4)"}
+UA = {"User-Agent": "cyprus-weather/0.1"}
 
 
 # the answer's shape; strict (every field required, nothing extra), as structured outputs want
@@ -309,9 +309,9 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="An LLM forecast for the next 4 / 12 / 24 h from the dashboard's data")
     parser.add_argument("--config", help="config.env path (default: ./config.env)")
     parser.add_argument("--dry-run", action="store_true", help="print the prompt and exit")
-    parser.add_argument("--cmd", help="the model CLI (default: ARANET_AI_CMD, else Codex with gpt-6-sol)")
+    parser.add_argument("--cmd", help="the model CLI (default: WEATHER_AI_CMD, else Codex with gpt-6-sol)")
     parser.add_argument("--api", help="read through a running dashboard (e.g. http://127.0.0.1:8091) instead of the files")
-    parser.add_argument("--out", help="where to save the answers (default: ARANET_AI_DIR, else data/ai)")
+    parser.add_argument("--out", help="where to save the answers (default: WEATHER_AI_DIR, else data/ai)")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     s = get_settings(args.config)

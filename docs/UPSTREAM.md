@@ -1,6 +1,6 @@
 # Происхождение кода
 
-Погодные модули и regression tests скопированы из DarkPatrick/aranet4. Commit и SHA256 оригиналов: UPSTREAM.json. Изменения: air.py — добавлен CO в CAMS/чтение; config.py — удалены настройки домашнего датчика и rsync. BLE, collector, домашний dashboard и пароль не перенесены. Новые API, прогноз, давление, сборщик и мобильный UI написаны отдельно.
+Погодные модули и regression tests скопированы из DarkPatrick/aranet4. Локально пакет `aranet_monitor` переименован в `backend/cyprus_weather`; пути в UPSTREAM.json остаются путями исходного репозитория. Commit и SHA256 оригиналов: UPSTREAM.json. Изменения: air.py — добавлен CO в CAMS/чтение; config.py — удалены настройки домашнего датчика и rsync. BLE, collector, домашний dashboard и пароль не перенесены. Новые API, прогноз, давление, сборщик и мобильный UI написаны отдельно.
 
 Исходный checkout не изменён. Перед распространением определить лицензию исходного Python кода. ECharts (Apache-2.0), Leaflet (BSD-2-Clause) устанавливаются через npm; лицензии сохраняются в пакетах. Атрибуция данных доступна в приложении.
 

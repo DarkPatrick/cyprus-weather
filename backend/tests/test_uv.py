@@ -2,7 +2,7 @@ import json
 import threading
 import urllib.request
 
-from aranet_monitor import uv, weather
+from cyprus_weather import uv, weather
 
 
 def fake_response(stations):

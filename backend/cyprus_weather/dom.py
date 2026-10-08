@@ -6,8 +6,8 @@
 * daily climatological archive since 2016: monthly PDFs with Tmax / Tmin /
   precipitation for 5-7 main stations (laid out as text with pdfplumber).
 
-    aranet-dom forecast        # sea forecasts + warnings (timer: every 30 min)
-    aranet-dom climate         # new / recent monthly archive PDFs (timer: daily)
+    python -m cyprus_weather.dom forecast        # sea forecasts + warnings (timer: every 30 min)
+    python -m cyprus_weather.dom climate         # new / recent monthly archive PDFs (timer: daily)
 """
 
 import argparse
@@ -27,7 +27,7 @@ from pathlib import Path
 from . import weather
 from .config import get_settings
 
-log = logging.getLogger("aranet.dom")
+log = logging.getLogger("cyprus_weather.dom")
 
 BASE = "https://www.dom.org.cy"
 SEA_PAGES = {k: f"{BASE}/FORECAST/sea_{k.lower()}_en.html" for k in "ABCD"}
@@ -38,7 +38,7 @@ METEOALARM_URL = "https://feeds.meteoalarm.org/api/v1/warnings/feeds-cyprus"
 RADAR_IMAGES = ["RADAR_Static.png", "RADAR_PFO_MAX_Static.png", "RADAR_LCA_MAX_Static.png"]
 RADAR_URL = f"{BASE}/RADAR_IMG/"
 CLIMATE_ROOT = f"{BASE}/CLIMATOLOGY/English/Daily%20Temperature%20and%20Precipitation%20Data/"
-UA = {"User-Agent": "aranet-monitor/0.1 (+https://github.com/DarkPatrick/aranet4)"}
+UA = {"User-Agent": "cyprus-weather/0.1"}
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sea_forecasts (
@@ -624,7 +624,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Sea forecasts, warnings and the climate archive from dom.org.cy")
     parser.add_argument("what", choices=["forecast", "climate"])
     parser.add_argument("--config", help="config.env path (default: ./config.env)")
-    parser.add_argument("--db", help="SQLite path, overrides ARANET_WEATHER_DB")
+    parser.add_argument("--db", help="SQLite path, overrides WEATHER_DB")
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

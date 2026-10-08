@@ -5,7 +5,7 @@ every 10 minutes) carries only the latest value per station, so it has to be
 polled every 10 minutes; a missed poll is a lost point. Conditional requests
 (ETag) make an unchanged poll cost a 304.
 
-Run once per 10 minutes (systemd timer): aranet-weather
+Run once per 10 minutes (systemd timer): python -m cyprus_weather.weather
 """
 
 import argparse
@@ -26,7 +26,7 @@ from zoneinfo import ZoneInfo
 from . import thermal
 from .config import get_settings
 
-log = logging.getLogger("aranet.weather")
+log = logging.getLogger("cyprus_weather.weather")
 
 FEED_URL = "https://www.dom.org.cy/AWS/OpenData/CyDoM.xml"
 LOCAL_TZ = ZoneInfo("Asia/Nicosia")
@@ -165,7 +165,7 @@ def _set_meta(conn, key, value):
 
 def fetch(url: str, etag: str | None, timeout: int = 30):
     """-> (body or None when unchanged, etag)"""
-    req = urllib.request.Request(url, headers={"User-Agent": "aranet-monitor/0.1 (+https://github.com/DarkPatrick/aranet4)"})
+    req = urllib.request.Request(url, headers={"User-Agent": "cyprus-weather/0.1"})
     if etag:
         req.add_header("If-None-Match", etag)
     try:
@@ -222,7 +222,7 @@ def _wind10(row) -> float | None:
 # ---------- solar radiation for "feels like in the sun" ----------
 # Global radiation is measured at ~14 stations. A station without a sensor borrows a
 # neighbour's within NEAR_KM and NEAR_DH metres of height (clouds over the mountains
-# differ from the coast), else the hourly model (Open-Meteo, aranet-uv collects it).
+# differ from the coast), else the hourly model (Open-Meteo, python -m cyprus_weather.uv collects it).
 NEAR_KM, NEAR_DH = 15.0, 350.0
 NEAR_SMOOTH = 15 * 60  # a neighbour's values averaged over +-15 min: cloud shadows don't line up
 
@@ -392,7 +392,7 @@ def readings(conn, station: str, ts_from: int | None = None, ts_to: int | None =
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Collect Cyprus weather station data into SQLite")
     parser.add_argument("--config", help="config.env path (default: ./config.env)")
-    parser.add_argument("--db", help="SQLite path, overrides ARANET_WEATHER_DB")
+    parser.add_argument("--db", help="SQLite path, overrides WEATHER_DB")
     parser.add_argument("--url", default=FEED_URL)
     args = parser.parse_args(argv)
 

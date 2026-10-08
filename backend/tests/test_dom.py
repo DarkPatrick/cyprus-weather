@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from aranet_monitor import dom, weather
+from cyprus_weather import dom, weather
 
 FIX = Path(__file__).parent / "fixtures"
 TZ = weather.LOCAL_TZ

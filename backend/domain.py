@@ -1,7 +1,7 @@
 """Window summaries and pressure provenance independent of HTTP/UI."""
 import math
 import statistics
-from aranet_monitor import weather
+from cyprus_weather import weather
 
 def recent_readings(c, station, now):
     """Exactly the last six recorded observations, independent of clock-hour edges."""

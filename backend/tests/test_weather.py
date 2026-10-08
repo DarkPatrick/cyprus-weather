@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from aranet_monitor import weather
+from cyprus_weather import weather
 
 SAMPLE = (Path(__file__).parent / "fixtures" / "cydom_sample.xml").read_bytes()
 # 2026-10-03 20:20 EEST (UTC+3) = 17:20 UTC
