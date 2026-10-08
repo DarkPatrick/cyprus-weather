@@ -5,6 +5,7 @@ import {bindImageShrink} from './image-shrink.js';
 import {levelView,chartLevel} from './chart-levels.js';
 import {cachedLoader,DATA_TTL} from './data-cache.js';
 import {gpsElevation,NEAR_STATION_KM} from './elevation.js';
+import {anonymousId,visitTracker} from './visits.js';
 import './style.css';
 import {windStrength,pressureIndicator,uvLevel,todayUvMaximum} from './weather-labels.js';
 import {airLevel,airClass} from './air-level.js';
@@ -428,6 +429,16 @@ async function periodicRefresh(){
  finally{setTimeout(periodicRefresh,DATA_TTL);}
 }
 fillShell();start().finally(()=>setTimeout(periodicRefresh,DATA_TTL));
+
+// Anonymous visit count: one request per app open, fire-and-forget; dev builds are not counted.
+const visits=visitTracker(()=>{
+ const id=anonymousId();
+ if(!id||import.meta.env.DEV||(Capacitor.isNativePlatform()&&!base))return;
+ fetch(base+'/api/visit?id='+id,{signal:AbortSignal.timeout(10000)}).catch(()=>{});
+});
+visits.open();
+document.addEventListener('visibilitychange',()=>document.hidden?visits.hide():visits.show());
+if(Capacitor.isNativePlatform()){App.addListener('pause',()=>visits.hide());App.addListener('resume',()=>visits.show());}
 
 setInterval(async()=>{if(map&&$('mapwrap').open&&!document.hidden){try{const t=Math.floor(now()/1000);bolts=await api(`weather/lightning?from=${t-25*3600}&to=${t}`);drawMap();}catch(e){$('mapbolts').textContent=tr("map.noLightning");}}},DATA_TTL);
 
