@@ -37,6 +37,8 @@ localStorage.removeItem('altitude');
 let positionRequest=null,locationMarker=null,shellEvents=false,languageGeneration=0;
 let map=null,layer=null,boltLayer=null,boltCanvas=null,bolts=null,activeBolts=[],history=null,historyEnd=null,mapTimer=null,chart=null,chartKey=null;
 const now=()=>Date.now();
+const PRIVACY_URL='https://darkpatrick.github.io/cyprus-weather/privacy-policy.html';
+const CONTACT_EMAIL='egor.semin.cy@gmail.com';
 const loadAPI=cachedLoader(async path=>{
  if(Capacitor.isNativePlatform()&&!base)throw Error(tr("error.noServer"));
  const r=await fetch(base+'/api/'+path,{signal:AbortSignal.timeout(25000)});
@@ -87,9 +89,9 @@ function fillShell(){
  <div class="toolbar"><select id="station" aria-label="${tr("aria.weatherStation")}"><option>${tr("common.loadingStations")}</option></select><button class="icon" id="locate" aria-label="${tr("aria.nearestStation")}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.5"/></svg></button><button class="icon" id="refresh" aria-label="${tr("aria.refresh")}">↻</button></div>
  <details class="mapwrap" id="mapwrap"><summary>${tr("map.stations")} <span class="muted">${tr("map.24hours")}</span></summary><div id="map" aria-label="${tr("map.cyprus")}"></div><div class="timeline"><div class="player"><button id="mapplay" aria-label="${tr("map.play")}" aria-pressed="false">▶</button><input id="timeline" aria-label="${tr("map.observationTime")}" type="range" min="0" max="144" value="144" step="1"></div><div class="mapoptions"><span id="maptime">${tr("common.now")}</span><label title="${tr("map.windHelp")}"><input type="checkbox" id="mapwind"> ${tr("weather.wind")}</label></div><div class="maplegend" aria-label="${tr("map.temperatureScale")}"><span>0°</span><span>12°</span><span>20°</span><span>28°</span><span>36°</span></div><div class="map-events"><div id="maprain"></div><div id="mapbolts"></div><div class="map-attribution">${tr("map.lightningAttribution",{year:new Date().getFullYear()})}</div><button id="mapshowbolts" class="mapshowbolts" hidden>${tr("map.allLightning")}</button></div></div></details>
  <div id="status" class="status" role="status">${tr("common.loading")}</div><div id="errors" role="alert"></div><section id="content"></section>
- <footer class="footer"><span class="footer-caption">${tr("sources.caption")}</span><details><summary>${tr("common.sourcesSettings")}</summary><p>${tr("sources.main")}</p><p class="attribution-source">${tr("sources.attribution",{year:new Date().getFullYear()})}</p><p class="lightning-source">${tr("sources.lightning",{year:new Date().getFullYear()})} <a href="https://www.eumetsat.int/legal-framework/data-policy" target="_blank" rel="noreferrer">${tr("sources.eumetsatPolicy")}</a>.</p><p class="location-help">${tr("settings.altitudeHelp")}</p><p><a href="https://www.dom.org.cy/" target="_blank" rel="noreferrer">CyDoM</a> · <a href="https://www.airquality.dli.mlsi.gov.cy/" target="_blank" rel="noreferrer">DLI</a> · <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a></p></details></footer></main>
+ <footer class="footer"><span class="footer-caption">${tr("sources.caption")}</span><details><summary>${tr("common.sourcesSettings")}</summary><p>${tr("sources.main")}</p><p class="attribution-source">${tr("sources.attribution",{year:new Date().getFullYear()})}</p><p class="disclaimer">${tr("legal.disclaimer")}</p><p class="lightning-source">${tr("sources.lightning",{year:new Date().getFullYear()})} <a href="https://www.eumetsat.int/legal-framework/data-policy" target="_blank" rel="noreferrer">${tr("sources.eumetsatPolicy")}</a>.</p><p class="location-help">${tr("settings.altitudeHelp")}</p><p><a href="https://www.dom.org.cy/" target="_blank" rel="noreferrer">CyDoM</a> · <a href="https://www.airquality.dli.mlsi.gov.cy/" target="_blank" rel="noreferrer">DLI</a> · <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a> · <a href="${PRIVACY_URL}" target="_blank" rel="noreferrer">${tr("legal.privacy")}</a></p></details></footer></main>
  <nav class="tabs" role="tablist" aria-label="${tr("nav.sections")}"><button data-tab="weather" role="tab" aria-selected="true"><b>☁</b>${tr("nav.weather")}</button><button data-tab="sun" role="tab" aria-selected="false"><b>☀</b>${tr("nav.sun")}</button><button data-tab="air" role="tab" aria-selected="false"><b>≋</b>${tr("nav.air")}</button><button data-tab="forecast" role="tab" aria-selected="false"><b>▤</b>${tr("nav.forecast")}</button></nav>
- <dialog id="detail"><button class="close" id="close" aria-label="${tr("aria.closeChart")}">×</button><h2 id="charttitle"></h2><p id="chartsubtitle" class="muted"></p><div id="chart" class="chart"></div><div id="chartlevels" class="chart-levels"></div><p id="chartnote" class="chartnote"></p></dialog><dialog id="forecastdetail"><button class="close" id="forecastclose" aria-label="${tr("aria.closeForecast")}">×</button><h2 id="forecasttitle"></h2><div id="forecastbody" class="forecast-body"></div></dialog><dialog id="languagedetail" class="language-dialog"><button class="close" id="languageclose" aria-label="${tr("language.close")}">×</button><h2>${tr("language.select")}</h2><div class="language-options">${[["system",tr("language.system")],["en","English"],["el","Ελληνικά"],["ru","Русский"]].map(([code,label])=>`<button type="button" data-language="${code}" lang="${code==='system'?getLanguage():code}" aria-pressed="${String((localStorage.getItem('language')||'system')===code)}">${label}<span aria-hidden="true">${(localStorage.getItem('language')||'system')===code?'✓':''}</span></button>`).join('')}</div></dialog>`;
+ <dialog id="detail"><button class="close" id="close" aria-label="${tr("aria.closeChart")}">×</button><h2 id="charttitle"></h2><p id="chartsubtitle" class="muted"></p><div id="chart" class="chart"></div><div id="chartlevels" class="chart-levels"></div><p id="chartnote" class="chartnote"></p></dialog><dialog id="forecastdetail"><button class="close" id="forecastclose" aria-label="${tr("aria.closeForecast")}">×</button><h2 id="forecasttitle"></h2><div id="forecastbody" class="forecast-body"></div></dialog><dialog id="languagedetail" class="language-dialog"><button class="close" id="languageclose" aria-label="${tr("language.close")}">×</button><h2>${tr("language.select")}</h2><div class="language-options">${[["system",tr("language.system")],["en","English"],["el","Ελληνικά"],["ru","Русский"]].map(([code,label])=>`<button type="button" data-language="${code}" lang="${code==='system'?getLanguage():code}" aria-pressed="${String((localStorage.getItem('language')||'system')===code)}">${label}<span aria-hidden="true">${(localStorage.getItem('language')||'system')===code?'✓':''}</span></button>`).join('')}</div></dialog><dialog id="locationinfo" class="location-dialog"><h2>${tr("geo.disclosureTitle")}</h2><p>${tr("geo.disclosureText")}</p><div class="dialog-actions"><button type="button" id="locationlater">${tr("geo.notNow")}</button><button type="button" id="locationcontinue" class="primary">${tr("geo.continue")}</button></div></dialog>`;
  applyTheme();
  $('language').onclick=()=>$('languagedetail').showModal();
  $('languageclose').onclick=()=>$('languagedetail').close();
@@ -111,7 +113,7 @@ function fillShell(){
  $('detail').addEventListener('close',()=>{chart?.dispose();chart=null;chartKey=null;});
  $('detail').addEventListener('click',e=>{if(e.target===$('detail')){const r=$('detail').getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)$('detail').close();}});
  if(!shellEvents){window.addEventListener('resize',()=>chart?.resize());
- if(Capacitor.isNativePlatform())App.addListener('backButton',()=>{if($('languagedetail').open)$('languagedetail').close();else if($('forecastdetail').open)$('forecastdetail').close();else if($('detail').open)$('detail').close();else if($('mapwrap').open)$('mapwrap').open=false;else App.exitApp();});shellEvents=true;}
+ if(Capacitor.isNativePlatform())App.addListener('backButton',()=>{if($('locationinfo').open)$('locationinfo').close();else if($('languagedetail').open)$('languagedetail').close();else if($('forecastdetail').open)$('forecastdetail').close();else if($('detail').open)$('detail').close();else if($('mapwrap').open)$('mapwrap').open=false;else App.exitApp();});shellEvents=true;}
 }
 async function changeLanguage(choice){
  const generation=++languageGeneration;++state.generation;
@@ -197,7 +199,7 @@ function render(){
   for(const entry of orderedBulletins(f?.bulletins)){const issue=entry.issue,b=entry.issued!=null?entry:null,label={A:tr("forecast.morning"),B:tr("forecast.day"),C:tr("forecast.evening")}[issue];
    html+=forecastCard('issue-'+issue,`${label}${b?' · '+date(b.issued*1000):''}`,b?`<p class="muted">${tr("forecast.valid",{from:date(b.valid_from*1000),to:date(b.valid_to*1000)})}</p>${b.paragraphs.map(p=>`<p>${esc(contentText(p))}</p>`).join('')}`:tr("forecast.issuePending"),label,b?[bulletinAge(b.issued,now()),date(b.issued*1000)].filter(Boolean).join(' · '):tr("common.noDataYet"));}
   html+='</div>';
-  html+=`<div class="sectiontitle"><h2>${tr("forecast.ai")}</h2></div><p class="muted ai-updated">${state.ai?.issued?tr('forecast.updated',{date:date(state.ai.issued*1000)}):tr("forecast.updateUnavailable")}</p>`+renderAI(state.ai);
+  html+=`<div class="sectiontitle"><h2>${tr("forecast.ai")}</h2></div><p class="muted ai-updated">${state.ai?.issued?tr('forecast.updated',{date:date(state.ai.issued*1000)}):tr("forecast.updateUnavailable")}</p>`+renderAI(state.ai)+(state.ai?`<p class="muted ai-report">${tr("forecast.aiNotice")} <a href="mailto:${CONTACT_EMAIL}?subject=${encodeURIComponent('Kairo AI forecast')}">${tr("forecast.aiReport")}</a></p>`:'');
   const tables=f?.bulletins?.filter(b=>b.table_image)||[];
   html+='<div class="official-forecast">'+disclosure(tr("forecast.regionalTable"),tables.length?`<p class="muted">${tr("forecast.originalImage")}</p><p class="muted">${tr("forecast.lastIssue",{issue:tr({A:"forecast.morning",B:"forecast.day",C:"forecast.evening"}[tables[0].issue])})}</p><button class="forecast-image-link" data-image aria-label="${tr("forecast.openTable")}"><img loading="lazy" draggable="false" src="${esc(tables[0].table_image)}" alt="${tr("forecast.tableAlt")}"></button>`:tr("forecast.tableUnavailable"))+'</div>';
   html+=`<div class="sectiontitle"><h2>${tr("forecast.tomorrowMap")}</h2></div>`;
@@ -275,14 +277,31 @@ function userElevation(){
  if(elevation==null||!st)return null;
  return L.latLng(state.location.latitude,state.location.longitude).distanceTo([st.lat,st.lon])<=NEAR_STATION_KM*1000?elevation:null;
 }
-function requestPosition(){
+// Explains location use before the system permission prompt (Play User Data policy).
+// Resolves true only on an explicit "Continue"; back, Escape or "Not now" decline.
+function locationDisclosure(){
+ return new Promise(resolve=>{
+  const dialog=$('locationinfo');let answered=false;
+  const finish=value=>{if(answered)return;answered=true;localStorage.setItem('locationDisclosure',value?'accepted':'declined');if(dialog.open)dialog.close();resolve(value);};
+  $('locationcontinue').onclick=()=>finish(true);$('locationlater').onclick=()=>finish(false);
+  dialog.addEventListener('close',()=>finish(false),{once:true});
+  dialog.showModal();
+ });
+}
+function requestPosition({ask=false}={}){
  if(positionRequest)return positionRequest;
  positionRequest=(async()=>{
   const options={enableHighAccuracy:true,timeout:15000,maximumAge:60000};
   if(Capacitor.isNativePlatform()){
    let permissions=await Geolocation.checkPermissions();
-   if(permissions.location!=='granted'&&permissions.coarseLocation!=='granted')permissions=await Geolocation.requestPermissions({permissions:['location']});
-   if(permissions.location!=='granted'&&permissions.coarseLocation!=='granted')throw Error(tr("geo.denied"));
+   const granted=p=>p.location==='granted'||p.coarseLocation==='granted';
+   if(!granted(permissions)&&permissions.location!=='denied'){
+    // At startup a declined explanation is not shown again; the location button asks again.
+    if(!ask&&localStorage.getItem('locationDisclosure')==='declined')throw Error(tr("geo.denied"));
+    if(!await locationDisclosure())throw Error(tr("geo.denied"));
+   }
+   if(!granted(permissions))permissions=await Geolocation.requestPermissions({permissions:['location']});
+   if(!granted(permissions))throw Error(tr("geo.denied"));
    return Geolocation.getCurrentPosition({...options,enableHighAccuracy:permissions.location==='granted'});
   }
   if(!navigator.geolocation)throw Error(tr("geo.unavailable"));
@@ -307,7 +326,7 @@ async function applyPosition(p){
 }
 async function locate(){
  $('locate').disabled=true;
- try{await applyPosition(await requestPosition());}
+ try{await applyPosition(await requestPosition({ask:true}));}
  catch(e){state.errors=[e.code===1?tr("geo.denied"):e.code===3?tr("geo.timeout"):tr('geo.unavailable')];render();}
  finally{$('locate').disabled=false;}
 }

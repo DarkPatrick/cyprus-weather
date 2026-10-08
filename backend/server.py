@@ -26,6 +26,11 @@ class Handler(BaseHTTPRequestHandler):
         self.visits_db=visits_db or visits.default_path(db_path)
         self.translations_db=translations_db or content_languages.cache_path(db_path)
         super().__init__(*a,**kw)
+    def log_message(self,format,*args):
+        # No per-request access log: URLs carry the anonymous id, station and elevation.
+        # Failures are still logged through logging.exception.
+        pass
+
     def respond(self,data,status=200,cache_status=None):
         body=data if isinstance(data,bytes) else json.dumps(data,allow_nan=False).encode()
         self.send_response(status)

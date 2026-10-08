@@ -1,5 +1,11 @@
 apply plugin: 'com.android.application'
 
+// Release signing: the upload key stays outside the repository. The properties file holds
+// storeFile, storePassword, keyAlias and keyPassword (see docs/RELEASE.md).
+def signingFile = file(System.getenv('KAIRO_SIGNING_PROPERTIES') ?: "${System.getProperty('user.home')}/.kairo/upload-keystore.properties")
+def signingProps = new Properties()
+if (signingFile.exists()) signingFile.withInputStream { signingProps.load(it) }
+
 android {
     namespace = "io.github.darkpatrick.kairo"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,6 +13,7 @@ android {
         applicationId "io.github.darkpatrick.kairo"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
+        // Bump versionCode for every upload to Google Play.
         versionCode 1
         versionName "1.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
@@ -16,8 +23,19 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (signingFile.exists()) {
+            release {
+                storeFile file(signingProps['storeFile'])
+                storePassword signingProps['storePassword']
+                keyAlias signingProps['keyAlias']
+                keyPassword signingProps['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
+            if (signingFile.exists()) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

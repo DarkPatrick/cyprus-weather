@@ -383,3 +383,9 @@ header>div:first-child{min-width:0}.eyebrow{letter-spacing:1.5px}
 .warning-text {font-size:13px;line-height:1.6;white-space:pre-line;overflow-wrap:anywhere;margin:6px 0;}
 .warning-original summary {font-size:12px;cursor:pointer;-webkit-tap-highlight-color:transparent;}
 .warning-source {margin-top:10px;opacity:.7;}
+
+.dialog-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.dialog-actions button{border:1px solid var(--border);background:var(--surface);border-radius:12px;padding:10px 16px}
+.dialog-actions .primary{background:var(--accent-fill);border-color:transparent;color:#fff}
+.location-dialog p{line-height:1.55;margin:12px 0 0}
+.ai-report{font-size:12px;margin:10px 0 0}

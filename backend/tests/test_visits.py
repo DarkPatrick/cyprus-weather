@@ -42,3 +42,11 @@ def test_visit_endpoint_stores_only_valid_ids_and_is_never_cached(tmp_path):
         server.shutdown()
         server.server_close()
         worker.join()
+
+
+def test_opens_older_than_retention_are_deleted(tmp_path):
+    path = str(tmp_path / 'visits.sqlite3')
+    old = 1_700_000_000
+    assert visits.record(path, ID, old)
+    assert visits.record(path, ID, old + visits.RETENTION_SECONDS + 1)
+    assert visits.totals(path)[0] == 1

@@ -20,6 +20,8 @@ SCHEMA = """CREATE TABLE IF NOT EXISTS visits (
 ANONYMOUS_ID = re.compile(r'[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}')
 # Repeated opens of one install within this window count once (double launches, retries).
 DEDUPE_SECONDS = 60
+# Opens older than this are deleted (the retention period stated in the privacy policy).
+RETENTION_SECONDS = 730 * 86400
 TZ = ZoneInfo('Asia/Nicosia')
 
 
@@ -51,6 +53,7 @@ def record(path, anonymous_id, ts):
             if recent:
                 return False
             conn.execute('INSERT INTO visits(anonymous_id, ts) VALUES (?, ?)', (anonymous_id, ts))
+            conn.execute('DELETE FROM visits WHERE ts<?', (ts - RETENTION_SECONDS,))
             return True
     finally:
         conn.close()
