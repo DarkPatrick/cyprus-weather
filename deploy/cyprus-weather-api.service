@@ -1,0 +1,16 @@
+[Unit]
+Description=Cyprus public weather API
+After=network-online.target
+Wants=network-online.target
+[Service]
+User=aranet
+WorkingDirectory=/opt/cyprus-weather
+ExecStart=/opt/aranet4/.venv/bin/python backend/server.py --port 8092 --db /var/lib/cyprus-weather/weather.db --ai-dir /var/lib/aranet-ai --lightning-db /home/aranet/data/lightning.db
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/cyprus-weather
+[Install]
+WantedBy=multi-user.target

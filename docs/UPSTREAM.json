@@ -1,0 +1,16 @@
+{
+  "repository": "https://github.com/DarkPatrick/aranet4",
+  "commit": "bad14e3c5b4063a6bf9b2b685b5233590f69fb2f",
+  "files": {
+    "aranet_monitor/__init__.py": "9d04fc88da428c904776ca2d725f6563ce100a5d232501ae2ba9a8c9f7fa339f",
+    "aranet_monitor/weather.py": "e94b25770302f2fefc7a3e2182034765295571a00176841cbc1a593f3d2810b9",
+    "aranet_monitor/thermal.py": "13268567c1321f7428b8bb8d2487504f93e7f8c2878b02336f605f02c2e82a89",
+    "aranet_monitor/agg.py": "c527529bd67d4df97772b2db822a1ef10ca588aac8142a51ef0f6bda83100510",
+    "aranet_monitor/uv.py": "1990cb5486d4e017e2516c065597f6eb792c555cf7587ed15f33dc438651ece3",
+    "aranet_monitor/air.py": "8ff84b528bebbaca27dd987ed193320c1165119f8c0cf57162f1bfe11773ba49",
+    "aranet_monitor/dom.py": "8dd96357e539c2d9352743cbdfed79850ed1afcaff72eb04e1187a0752ae878a",
+    "aranet_monitor/forecast.py": "d64cdd2abbaefafe72dde428a871a84c3c0411c156c60af70e9f611939f1307d",
+    "aranet_monitor/config.py": "ce5350d48819286c399661f3da99bcb1dd51c01b5c3fce1ee8b9a426325eeac4",
+    "aranet_monitor/ai_forecast.py": "acbdeee0aa41eb4e4cbf47f56c7b59778e9d7986d80c0170bcca2e047c7a9955"
+  }
+}

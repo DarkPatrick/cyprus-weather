@@ -1,0 +1,16 @@
+[Unit]
+Description=Sync existing public weather history and hourly model
+After=network-online.target
+Wants=network-online.target
+[Service]
+User=aranet
+WorkingDirectory=/opt/cyprus-weather
+ExecStart=/opt/aranet4/.venv/bin/python backend/sync_server.py --source /home/aranet/weather/weather.db --db /var/lib/cyprus-weather/weather.db --loop
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/cyprus-weather
+[Install]
+WantedBy=multi-user.target

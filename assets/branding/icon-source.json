@@ -1,0 +1,18 @@
+{
+  "source_url": "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_land.geojson",
+  "source_sha256": "1ac90796408bc6ad6911d69448485d3c4dbf2190370080368a09976e1c9f7416",
+  "coastline_vertices": 202,
+  "source_scale": "1:10,000,000 (not 10 metres)",
+  "retrieved": "2026-10-08",
+  "projection": "local equirectangular",
+  "standard_parallel_degrees": 35.1302555,
+  "simplification": "none",
+  "palette": {
+    "background": "#07566a",
+    "sun": "#d86a1c",
+    "island": "#fffaf0",
+    "wave": "#05b0b8"
+  },
+  "layout_translation_y": -60,
+  "coastline_simplification": "none; uniform translation only"
+}

@@ -1,0 +1,18 @@
+[Unit]
+Description=Prepare Kairo weather content translations
+After=network-online.target cyprus-weather-sync.service
+Wants=network-online.target
+[Service]
+User=egor
+WorkingDirectory=/opt/cyprus-weather
+ExecStart=/opt/aranet4/.venv/bin/python backend/content_languages.py --db /var/lib/cyprus-weather/weather.db --ai-dir /var/lib/aranet-ai --api-base http://127.0.0.1:8092/api/weather --loop
+Restart=on-failure
+RestartSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/egor/.codex
+ReadWritePaths=/var/lib/cyprus-weather/translations
+[Install]
+WantedBy=multi-user.target

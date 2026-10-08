@@ -1,0 +1,20 @@
+node_modules/
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+mobile/dist/
+data/
+output/
+.env
+.env.local
+android/local.properties
+android/.gradle/
+android/**/build/
+.sdk/
+
+# Machine-local SSH data-source settings
+/config.env
+
+/mobile/.env.local
+.DS_Store

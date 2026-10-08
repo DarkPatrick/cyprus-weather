@@ -1,0 +1,16 @@
+{
+  "source": "output/icon-concepts/sun-cloud.png",
+  "method": "cyan-component boundary trace",
+  "source_pixel_bounds": [
+    249,
+    826,
+    1019,
+    1055
+  ],
+  "maximum_simplification_error_source_pixels": 0.75,
+  "trace_points": 576,
+  "scale": "original width retained; height increased by 25%",
+  "horizontal_stretch": 1.0,
+  "vertical_stretch": 1.25,
+  "top_offset_from_original": -33
+}

@@ -1,0 +1,206 @@
+import json
+import threading
+import urllib.request
+from datetime import datetime
+from pathlib import Path
+
+import pytest
+
+from aranet_monitor import dom, weather
+
+FIX = Path(__file__).parent / "fixtures"
+TZ = weather.LOCAL_TZ
+
+
+def local(y, m, d, h=0, mi=0):
+    return int(datetime(y, m, d, h, mi, tzinfo=TZ).timestamp())
+
+
+# ---------- NET ("feels like") ----------
+
+@pytest.mark.parametrize("wind_kn,temp,rh,expected", [
+    # rows of the Department of Meteorology's own AWS_NET.txt (2026-10-03 20:00)
+    (2.7, 22.3, 72, 18.1),
+    (0.8, 10.1, 87, 8.6),
+    (3.4, 20.6, 80, 15.9),
+    (1.7, 19.8, 73, 16.5),
+])
+def test_net_matches_published_values(wind_kn, temp, rh, expected):
+    assert weather.net(temp, rh, wind_kn * weather.KNOT) == pytest.approx(expected, abs=0.1)
+
+
+def test_net_missing_input():
+    assert weather.net(20, None, 1) is None
+
+
+# ---------- sea forecast ----------
+
+def test_parse_sea_forecast():
+    fc = dom.parse_sea((FIX / "sea_a_en.html").read_bytes(), "A")
+    assert fc["valid_from"] == local(2026, 10, 3, 6) and fc["valid_to"] == local(2026, 10, 4, 6)
+    assert fc["issued"] == local(2026, 10, 3, 5, 30)
+    assert (fc["pressure"], fc["sst"], fc["warnings"]) == (1015, 27, "NIL")
+    assert fc["visibility"].startswith("Good")
+    assert fc["synopsis"].startswith("Low pressure and unstable airmass")
+    areas = json.loads(fc["areas"])
+    assert list(areas) == ["West Coast", "South Coast", "East Coast", "North Coast"]
+    assert areas["West Coast"][0] == ["Morning", "Southeast to Southwest 3, soon South to Southwest 3 to 4", "Smooth to Slight"]
+    assert all(len(v) == 3 for v in areas.values())
+
+
+def test_until_2400_is_next_midnight():
+    assert dom._local_ts("03/10/2026", "2400") == local(2026, 10, 4)
+
+
+def test_store_sea_and_marine(tmp_path):
+    conn = dom.connect(str(tmp_path / "w.db"))
+    fc = dom.parse_sea((FIX / "sea_a_en.html").read_bytes(), "A")
+    dom.store_sea(conn, fc)
+    dom.store_sea(conn, dict(fc, sst=26.5))  # re-published: replaced, not duplicated
+    m = dom.marine(conn)
+    assert m["forecast"]["sst"] == 26.5 and m["forecast"]["areas"]["North Coast"][2][0] == "Night"
+    assert m["sst"] == {"ts": [fc["valid_from"]], "sst": [26.5]}
+
+
+# ---------- warnings ----------
+
+def test_warnings_store_only_changes(tmp_path):
+    conn = dom.connect(str(tmp_path / "w.db"))
+    page = (FIX / "agromet_warnings_none.html").read_text(encoding="utf-8")
+    assert dom.parse_warnings(page.encode()) == ""
+    assert dom.store_warnings(conn, "", now=100)
+    assert not dom.store_warnings(conn, "", now=200)
+    yellow = dom.parse_warnings(page.replace(dom.NO_WARNINGS, "Κίτρινη Προειδοποίηση για καταιγίδες").encode())
+    assert yellow == "Κίτρινη Προειδοποίηση για καταιγίδες"
+    assert dom.store_warnings(conn, yellow, now=300)
+    assert dom.marine(conn)["warnings"] == {"ts": 300, "text": yellow}
+    assert dom.parse_warnings(b"<html>redesigned page</html>") == ""
+
+
+# ---------- Meteoalarm ----------
+
+def test_parse_meteoalarm():
+    alerts = dom.parse_meteoalarm((FIX / "meteoalarm_cy.json").read_bytes())
+    assert len(alerts) == 3
+    a = alerts[-1]
+    assert (a["level"], a["type"], a["event"], a["msg_type"]) == (2, 3, "Thunderstorm Yellow", "Alert")
+    assert a["onset"] == local(2026, 10, 2, 10) and a["expires"] == local(2026, 10, 2, 16, 59) + 59
+    assert a["description"].startswith("ISOLATED HEAVY THUNDERSTORMS") and a["description_el"].startswith("ΜΕΜΟΝΩΜΕΝΕΣ")
+    assert a["areas"] == "Cyprus"
+
+
+def test_active_alerts(tmp_path):
+    conn = dom.connect(str(tmp_path / "w.db"))
+    alerts = dom.parse_meteoalarm((FIX / "meteoalarm_cy.json").read_bytes())
+    dom.store_alerts(conn, alerts)
+    dom.store_alerts(conn, alerts)  # re-polled feed: no duplicates
+    assert [a["identifier"] for a in dom.active_alerts(conn, now=local(2026, 10, 2, 12))] == [alerts[-1]["identifier"]]
+    # issued in the morning for the afternoon: shown before it starts
+    assert len(dom.active_alerts(conn, now=local(2026, 10, 2, 8))) == 1
+    assert dom.active_alerts(conn, now=local(2026, 10, 3)) == []
+    # an update replaces the original, a cancel removes it
+    upd = dict(alerts[-1], identifier="X.update", msg_type="Update", refs=alerts[-1]["identifier"], level=3)
+    dom.store_alerts(conn, [upd])
+    act = dom.active_alerts(conn, now=local(2026, 10, 2, 12))
+    assert [(a["identifier"], a["level"]) for a in act] == [("X.update", 3)]
+    dom.store_alerts(conn, [dict(upd, identifier="X.cancel", msg_type="Cancel", refs="X.update")])
+    assert dom.active_alerts(conn, now=local(2026, 10, 2, 12)) == []
+
+
+def test_meteoalarm_references_parsed():
+    raw = json.dumps({"warnings": [{"alert": {
+        "identifier": "B", "msgType": "Update", "sent": "2026-10-02T09:00:00+03:00",
+        "references": "sender,A,2026-10-01T09:00:00+03:00",
+        "info": [{"language": "en-GB", "event": "Wind Yellow", "parameter": [
+            {"valueName": "awareness_level", "value": "2; yellow; Moderate"}, {"valueName": "awareness_type", "value": "1; Wind"}],
+            "onset": "2026-10-02T10:00:00+03:00", "expires": "2026-10-02T20:00:00+03:00", "area": [{"areaDesc": "Cyprus"}]}],
+    }}]}).encode()
+    a = dom.parse_meteoalarm(raw)[0]
+    assert (a["refs"], a["type"], a["level"]) == ("A", 1, 2)
+
+
+# ---------- climate archive ----------
+
+def test_parse_climate_tight_header_april_2021():
+    rows = dom.parse_climate((FIX / "climate_2021_04.txt").read_text(encoding="utf-8"), 2021, 4)
+    names = {r["name"] for r in rows}
+    assert names == {"Pafos Airport", "Prodromos (CFC)", "Athalassa", "Larnaka Airport",
+                     "New Limassol Port", "Paralimni (St. Frenaros)"}
+    first = {r["name"]: r for r in rows if r["date"] == "2021-04-01"}
+    assert (first["Pafos Airport"]["tmax"], first["Pafos Airport"]["tmin"], first["Pafos Airport"]["rain"]) == (16.3, 8.4, 16.0)
+    assert (first["Prodromos (CFC)"]["tmax"], first["Prodromos (CFC)"]["tmin"]) == (5.1, -1.4)
+    assert first["Paralimni (St. Frenaros)"]["rain"] == 0.3
+    assert max(int(r["date"][-2:]) for r in rows) == 30
+
+
+def test_parse_climate_blank_and_trace_cells():
+    rows = dom.parse_climate((FIX / "climate_2023_12.txt").read_text(encoding="utf-8"), 2023, 12)
+    by = {(r["name"], r["date"]): r for r in rows}
+    d1 = by[("Pafos Airport", "2023-12-01")]
+    assert (d1["tmax"], d1["tmin"], d1["rain"]) == (21.8, 12.1, None)  # blank rain cell stays blank
+    assert by[("Prodromos (CFC)", "2023-12-01")]["rain"] == 0.0         # not shifted into the gap
+    d10 = by[("Pafos Airport", "2023-12-10")]
+    assert (d10["rain"], d10["trace"]) == (0.0, 1)
+
+
+def test_station_codes_and_readings(tmp_path):
+    conn = dom.connect(str(tmp_path / "w.db"))
+    rows = dom.parse_climate((FIX / "climate_2021_04.txt").read_text(encoding="utf-8"), 2021, 4)
+    dom.store_climate(conn, rows)
+    codes = {s["code"] for s in dom.climate_stations(conn)}
+    assert {"LCPH", "LCLK", "ATHALASSA", "LIMASSOL", "FRENAROS", "PRODROMOS"} == codes
+    data = dom.climate_readings(conn, "LCPH", local(2021, 4, 1), local(2021, 4, 2, 12))
+    assert data["ts"] == [local(2021, 4, 1), local(2021, 4, 2)] and data["tmax"][0] == 16.3
+
+
+def test_pdf_month_names():
+    assert dom.pdf_month("https://x/Tmax_Tmin_Precipitation_09_2026.pdf") == (2026, 9)
+    assert dom.pdf_month("https://x/MAX%20-%20MIN%20-%20RAIN%20_12%20_2022.pdf") == (2022, 12)
+    assert dom.pdf_month("https://x/readme.pdf") is None
+
+
+# ---------- API ----------
+
+
+
+
+
+def test_pdf_with_overdrawn_row_march_2016():
+    """the 20th is drawn twice on top of itself; old poppler lost that day"""
+    text = dom.pdf_to_text((FIX / "climate_2016_03.pdf").read_bytes())
+    rows = dom.parse_climate(text, 2016, 3)
+    assert len(rows) == 6 * 31
+    d20 = {r["name"]: r for r in rows if r["date"] == "2016-03-20"}
+    assert (d20["Pafos Airport"]["tmax"], d20["Pafos Airport"]["tmin"]) == (20.4, 11.5)
+    assert d20["New Limassol Port"]["tmax"] == 22.9
+    # the header in this file is spaced unlike the data; poppler shifted columns here
+    d1 = {r["name"]: r for r in rows if r["date"] == "2016-03-01"}
+    assert (d1["Athalassa"]["tmax"], d1["Athalassa"]["tmin"], d1["Athalassa"]["rain"]) == (27.1, 10.1, 0.0)
+    assert all(r["tmax"] >= r["tmin"] for r in rows if r["tmax"] is not None and r["tmin"] is not None)
+
+
+def test_marine_reports_radar_freshness(tmp_path):
+    conn = dom.connect(str(tmp_path / "w.db"))
+    assert dom.marine(conn)["radar"] == {}
+    with conn:
+        conn.execute("INSERT INTO radar (image, updated, checked) VALUES ('RADAR_Static.png', 100, 200)")
+    assert dom.marine(conn)["radar"] == {"RADAR_Static.png": 100}
+
+
+def test_archive_crawl_can_skip_old_years(monkeypatch):
+    root = dom.CLIMATE_ROOT
+    tree = {
+        root: [root + "2016/", root + "2025/", root + "2026/"],
+        root + "2016/": [root + "2016/January/"],
+        root + "2025/": [root + "2025/December/"],
+        root + "2026/": [root + "2026/01_January/"],
+        root + "2016/January/": [root + "2016/January/X_01_2016.pdf"],
+        root + "2025/December/": [root + "2025/December/X_12_2025.pdf"],
+        root + "2026/01_January/": [root + "2026/01_January/X_01_2026.pdf"],
+    }
+    calls = []
+    monkeypatch.setattr(dom, "_links", lambda url: calls.append(url) or tree[url])
+    assert len(dom.archive_pdfs()) == 3
+    calls.clear()
+    assert [dom.pdf_month(u) for u in dom.archive_pdfs(min_year=2025)] == [(2025, 12), (2026, 1)]
+    assert root + "2016/" not in calls

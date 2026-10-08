@@ -1,0 +1,10 @@
+{
+  "appId": "cy.weather.app",
+  "appName": "Kairo",
+  "webDir": "mobile/dist",
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}
