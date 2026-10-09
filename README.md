@@ -119,6 +119,14 @@ PYTHONPATH=backend .venv/bin/python -m cyprus_weather.ai_forecast --dry-run
 
 Для Google Play это нужно отметить в Data safety: «App activity» / «Device or other IDs», без привязки к личности.
 
+## Мониторинг бэкенда
+
+`cyprus-weather-monitor.timer` раз в 10 минут запускает `backend/monitor.py`: проверяет, что API отвечает и что наблюдения не старше часа — в копии приложения и в исходной базе aranet4 (по их возрасту видно, сломана синхронизация или сам сборщик). Уведомления приходят пушем через [ntfy](https://ntfy.sh): одно при поломке, напоминание раз в 6 часов и сообщение о восстановлении. Имя топика хранится только на сервере в `/etc/cyprus-weather/monitor.env` (`NTFY_TOPIC=...`), не в репозитории. Отправка идёт по IPv4: лимит ntfy.sh для общей IPv6-подсети хостинга исчерпан соседями.
+
+```sh
+sudo -u aranet /opt/aranet4/.venv/bin/python backend/monitor.py --db /var/lib/cyprus-weather/weather.db --source /home/aranet/weather/weather.db --state /tmp/check.json --dry-run
+```
+
 ## Проверки
 
 ```sh

@@ -1,0 +1,19 @@
+# Paths below belong to the existing aranet4 service on the server (its user, virtualenv,
+# public weather DB and AI directory). They are shared resources: keep them as they are.
+[Unit]
+Description=Kairo backend health check (ntfy alerts)
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+User=aranet
+WorkingDirectory=/opt/cyprus-weather
+# NTFY_TOPIC=<secret topic name>; the file lives only on the server.
+EnvironmentFile=/etc/cyprus-weather/monitor.env
+ExecStart=/opt/aranet4/.venv/bin/python backend/monitor.py --db /var/lib/cyprus-weather/weather.db --source /home/aranet/weather/weather.db --state /var/lib/cyprus-weather/monitor-state.json
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/cyprus-weather
+# Both DBs are WAL: a read-only reader still has to create the -shm index file.
+ReadWritePaths=/home/aranet/weather

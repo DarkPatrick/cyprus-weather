@@ -1,0 +1,7 @@
+[Unit]
+Description=Run the Kairo backend health check every 10 minutes
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+[Install]
+WantedBy=timers.target
