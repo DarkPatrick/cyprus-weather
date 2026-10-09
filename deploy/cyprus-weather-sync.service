@@ -14,5 +14,7 @@ NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=/var/lib/cyprus-weather
+# The aranet4 DB is WAL: a read-only reader still has to create weather.db-shm next to it.
+ReadWritePaths=/home/aranet/weather
 [Install]
 WantedBy=multi-user.target
