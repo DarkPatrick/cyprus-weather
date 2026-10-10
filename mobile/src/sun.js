@@ -48,3 +48,10 @@ export function sunWindow(ms,lat,lon){
   const center=extrema.sort((a,b)=>Math.abs(a.time-ms)-Math.abs(b.time-ms))[0];
   return {center,from:center.time-12*HOUR,to:center.time+12*HOUR};
 }
+
+// Same boundaries as the sun chart bands: night, three twilights, low sun, day.
+const PHASES=[[-18,'night'],[-12,'astronomical'],[-6,'nautical'],[-.833,'civil'],[6,'low'],[Infinity,'day']];
+export function sunPhase(elevation){
+ if(!Number.isFinite(elevation))return 'night';
+ return PHASES.find(([to])=>elevation<to)[1];
+}

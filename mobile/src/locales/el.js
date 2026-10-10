@@ -10,7 +10,6 @@ export default {
   "common.stationLower": "σταθμός",
   "common.user": "GPS",
   "common.sources": "Πηγές",
-  "common.sourcesSettings": "Πηγές και ρυθμίσεις",
   "common.sourcesUnavailable": "Οι πηγές δεν είναι διαθέσιμες",
   "common.imageUnavailable": "Η εικόνα της πηγής δεν είναι διαθέσιμη",
   "common.updated": "Ενημερώθηκε",

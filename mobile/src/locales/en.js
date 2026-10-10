@@ -10,7 +10,6 @@ export default {
   "common.stationLower": "station",
   "common.user": "GPS",
   "common.sources": "Sources",
-  "common.sourcesSettings": "Sources and settings",
   "common.sourcesUnavailable": "Sources currently unavailable",
   "common.imageUnavailable": "Source image currently unavailable",
   "common.updated": "Updated",
