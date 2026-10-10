@@ -403,3 +403,7 @@ header>div:first-child{min-width:0}.eyebrow{letter-spacing:1.5px}
 [data-theme=dark] .card.featured.sun-civil{background:#44302e;border-color:#6c4b47}
 [data-theme=dark] .card.featured.sun-low{background:#4b3320;border-color:#775434}
 [data-theme=dark] .card.featured.sun-day{background:#4b3b18;border-color:#78602c}
+
+/* Current condition: a full-width line at the top of the temperature card. */
+.temperature-condition{grid-column:1 / -1;font-size:15px;font-weight:600;margin:-2px 0 2px}
+.temperature-condition small{font-size:12px;font-weight:400;color:var(--muted)}

@@ -8,7 +8,8 @@ from cyprus_weather import weather, thermal
 VARS = {'temp':'temperature_2m','rh':'relative_humidity_2m','rain':'precipitation',
         'rain_probability':'precipitation_probability','wind10':'wind_speed_10m',
         'wdir':'wind_direction_10m','p_station':'surface_pressure',
-        'p_msl':'pressure_msl','rad_global':'shortwave_radiation'}
+        'p_msl':'pressure_msl','rad_global':'shortwave_radiation',
+        'cloud_cover':'cloud_cover','weather_code':'weather_code'}
 
 def connect(path):
     c = weather.connect(path)

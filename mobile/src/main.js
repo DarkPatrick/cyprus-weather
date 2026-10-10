@@ -6,6 +6,7 @@ import {levelView,chartLevel} from './chart-levels.js';
 import {cachedLoader,DATA_TTL} from './data-cache.js';
 import {gpsElevation,NEAR_STATION_KM} from './elevation.js';
 import {anonymousId,visitTracker} from './visits.js';
+import {conditionView} from './conditions.js';
 import './style.css';
 import {windStrength,pressureIndicator,uvLevel,todayUvMaximum} from './weather-labels.js';
 import {airLevel,airClass} from './air-level.js';
@@ -147,7 +148,8 @@ function render(){
  const pos=sunPosition(now(),st.lat,st.lon);
  if(state.tab==='weather'){
   html=`<div class="sectiontitle"><h2>${tr("weather.now")}</h2><small>${tr("weather.lastHour")}</small></div><div class="grid weather-grid">`;
-  html+=`<div class="card wide temperature-overview">`+card('temp',tr("weather.temperature"),num(s.temp),'°C','','temperature-main');
+  const condition=conditionView(state.snapshot?.conditions);
+  html+=`<div class="card wide temperature-overview">`+(condition?`<div class="temperature-condition"><span aria-hidden="true">${condition.icon}</span> ${esc(tr(condition.key))} <small>· ${esc(tr(condition.source))}</small></div>`:'')+card('temp',tr("weather.temperature"),num(s.temp),'°C','','temperature-main');
   html+=`<div class="temperature-feels"><div class="label">${tr("weather.feelsLike")}</div><div class="feels">`;
   html+=card('utci_shade',pos.elevation>0?tr("weather.shade"):'',num(s.utci_shade),'°C','',stressClass(s.utci_shade),'',`${tr(pos.elevation>0?'weather.feelsShade':'weather.feelsLike')} · ${num(s.utci_shade)} °C${stress(s.utci_shade)?' · '+stress(s.utci_shade):''}`);
   if(pos.elevation>0)html+=card('utci_sun',tr("weather.sun"),num(s.utci_sun),'°C','',stressClass(s.utci_sun),'',`${tr("weather.feelsSun")} · ${num(s.utci_sun)} °C${stress(s.utci_sun)?' · '+stress(s.utci_sun):''}`);

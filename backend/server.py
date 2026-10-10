@@ -15,6 +15,7 @@ from domain import summary, pressure_source, pressure_at, recent_readings
 from response_cache import ResponseCache
 import content_languages
 import visits
+import conditions
 
 def initialize(path):
     for connect in (dom.connect,uv.connect,air.connect,forecast.connect,model.connect):
@@ -122,7 +123,8 @@ class Handler(BaseHTTPRequestHandler):
             if not c.execute('SELECT 1 FROM stations WHERE code=?',(station,)).fetchone():raise ValueError('Unknown station')
             if path.endswith('/snapshot'):
                 d=recent_readings(c,station,now)
-                return {'now':now,'summary':summary(d,now),'rad_src':d['rad_src'],'pressure_source':pressure_source(c,station,now)}
+                return {'now':now,'summary':summary(d,now),'rad_src':d['rad_src'],'pressure_source':pressure_source(c,station,now),
+                        'conditions':conditions.current(c,station,now,self.lightning_db)}
             if path.endswith('/model'):return model.readings(c,station,lo,hi)
             if path.endswith('/uv'):return uv.readings(c,station,lo,hi)
             if path.endswith('/air'):return air.readings(c,station,lo,hi)
