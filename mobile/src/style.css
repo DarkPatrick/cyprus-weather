@@ -407,3 +407,10 @@ header>div:first-child{min-width:0}.eyebrow{letter-spacing:1.5px}
 /* Current condition: a full-width line at the top of the temperature card. */
 .temperature-condition{grid-column:1 / -1;font-size:15px;font-weight:600;margin:-2px 0 2px}
 .temperature-condition small{font-size:12px;font-weight:400;color:var(--muted)}
+
+/* Weather tab on phones: trims ~20px so the tab fits one screen even with a warning banner. */
+@media(max-width:649px){
+ #app[data-tab=weather] .weather-grid{gap:10px}
+ #app[data-tab=weather] .temperature-overview{padding-top:14px;padding-bottom:14px}
+ #app[data-tab=weather] .weather-primary-row .card{min-height:0}
+}
