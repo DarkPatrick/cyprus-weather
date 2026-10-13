@@ -18,6 +18,11 @@ RAIN_SECONDS = 30 * 60
 DUST_HAZE = 50          # µg/m³, the moderate band of the PM10 scale used for dust in the app
 MIN_ELEVATION = 10      # below this the radiation ratio is too noisy to judge clouds
 CLEAR_INDEX = ((0.75, 'clear'), (0.5, 'partly_cloudy'), (0.25, 'cloudy'))
+# Broken clouds: the sun between clouds can even exceed the clear-sky value, so a high
+# average is "clear" only when every sample is high and the readings are steady.
+STEADY_SPREAD = 0.2
+# Thin high cloud passes most of the sunlight; with a cloudy model the sky looks cloudy.
+MODEL_CLOUDY = 70
 CLOUD_COVER = ((25, 'clear'), (60, 'partly_cloudy'), (85, 'cloudy'))
 FOG_CODES = {45, 48}
 
@@ -34,8 +39,18 @@ def rain_level(rate):
     return 'rain_light' if rate < 2.5 else 'rain_moderate' if rate < 7.6 else 'rain_heavy'
 
 
+def sky_from_radiation(ratios, cloud_cover=None):
+    """Cloud level from measured/clear-sky ratios of the last samples."""
+    mean = sum(ratios) / len(ratios)
+    level = next((code for limit, code in CLEAR_INDEX if mean >= limit), 'overcast')
+    if level == 'clear' and (min(ratios) < CLEAR_INDEX[0][0] or max(ratios) - min(ratios) > STEADY_SPREAD
+                             or cloud_cover is not None and cloud_cover >= MODEL_CLOUDY):
+        level = 'partly_cloudy'
+    return level
+
+
 def classify(*, flashes_near=0, rain_rate=None, model_code=None, rh=None, dust=None,
-             clear_index=None, cloud_cover=None):
+             clear_index=None, cloud_cover=None, ratios=None):
     """(code, source) by priority; (None, None) when nothing is known."""
     if flashes_near:
         return 'thunderstorm', 'measured'
@@ -45,6 +60,8 @@ def classify(*, flashes_near=0, rain_rate=None, model_code=None, rh=None, dust=N
         return 'fog', 'model'
     if dust is not None and dust >= DUST_HAZE:
         return 'dust', 'model'
+    if ratios:
+        return sky_from_radiation(ratios, cloud_cover), 'measured'
     if clear_index is not None:
         return next((code for limit, code in CLEAR_INDEX if clear_index >= limit), 'overcast'), 'measured'
     if cloud_cover is not None:
@@ -72,7 +89,7 @@ def current(conn, station, now, lightning_db=None):
     rain_rate = round(sum(rain) * 3600 / RAIN_SECONDS, 1) if rain else None
     rh = next((r[2] for r in reversed(rows) if r[2] is not None), None)
 
-    clear_index = None
+    clear_index, ratios = None, None
     if rows and elevation >= MIN_ELEVATION:
         src = weather.radiation_source(conn, station)
         if src['kind'] in ('own', 'near'):
@@ -82,6 +99,7 @@ def current(conn, station, now, lightning_db=None):
             expected = sum(c for _, c in pairs)
             if pairs and expected > 0:
                 clear_index = round(sum(g for g, _ in pairs) / expected, 2)
+                ratios = [g / c for g, c in pairs if c > 0]
 
     model = _nearest_hour(conn, 'SELECT data FROM hourly_model', station, now)
     model = json.loads(model[0]) if model else {}
@@ -92,7 +110,7 @@ def current(conn, station, now, lightning_db=None):
     near = sum(1 for la, lo in zip(flashes['lat'], flashes['lon']) if weather._km(lat, lon, la, lo) <= THUNDER_KM)
 
     code, source = classify(flashes_near=near, rain_rate=rain_rate, model_code=model.get('weather_code'), rh=rh,
-                            dust=dust, clear_index=clear_index, cloud_cover=model.get('cloud_cover'))
+                            dust=dust, clear_index=clear_index, cloud_cover=model.get('cloud_cover'), ratios=ratios)
     if code is None:
         return None
     return {'code': code, 'source': source, 'night': elevation < -0.833, 'clear_index': clear_index,

@@ -60,3 +60,14 @@ def test_current_falls_back_to_model_cloud_cover_at_night(tmp_path):
     assert result == {'code': 'clear', 'source': 'model', 'night': True, 'clear_index': None,
                       'cloud_cover': 5, 'rain_rate': None, 'flashes_near': 0}
     c.close()
+
+
+def test_broken_clouds_and_cloudy_model_are_not_clear():
+    # Limassol, 12 Oct 2026 ~10:10 local: sun between clouds, the average looked clear.
+    assert conditions.sky_from_radiation([0.86, 0.95, 1.04]) == 'clear'
+    assert conditions.sky_from_radiation([0.64, 0.95, 1.04]) == 'partly_cloudy'
+    assert conditions.sky_from_radiation([0.78, 1.05, 0.8]) == 'partly_cloudy'
+    assert conditions.sky_from_radiation([0.9, 0.92, 0.91], cloud_cover=85) == 'partly_cloudy'
+    assert conditions.sky_from_radiation([0.9, 0.92, 0.91], cloud_cover=20) == 'clear'
+    assert conditions.sky_from_radiation([0.3, 0.35, 0.4]) == 'cloudy'
+    assert conditions.classify(ratios=[0.1, 0.12, 0.15]) == ('overcast', 'measured')
