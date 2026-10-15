@@ -11,10 +11,12 @@ on a Web Mercator grid around Cyprus.
 import argparse
 import calendar
 import io
+import json
 import logging
 import math
 import re
 import time
+from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
 import h5py
@@ -31,8 +33,10 @@ WIDTH, HEIGHT = 480, 400          # about 1 km per pixel
 PAIR_SECONDS = 12 * 60            # sweeps of the two radars combined into one frame
 KEEP_SECONDS = 26 * 3600
 MIN_DBZ = 10                      # weaker echoes are mostly noise and sea clutter
+HEAVY_DBZ = 30                    # about 3 mm/h and more
 MAX_RAY_GAP = 1.5                 # degrees between a pixel and the nearest ray
 LOOP_SECONDS = 180
+GONE_SECONDS = 20 * 60           # a listed volume answering 404 for longer than this is deleted
 # dBZ lower bound -> colour, the usual rain-radar scale (drizzle blue to hail magenta).
 COLOURS = [(10, (140, 200, 255)), (15, (80, 160, 240)), (20, (30, 110, 220)), (25, (20, 70, 190)), (30, (40, 180, 70)),
            (35, (20, 135, 45)), (40, (245, 215, 30)), (45, (250, 150, 20)), (50, (230, 45, 30)),
@@ -165,6 +169,26 @@ def sample(sweep, lat, lon):
     return out
 
 
+def cell_summary(dbz, lat, lon):
+    """[lat, lon, echo_km2, heavy_km2, max_dbz] per radar_store.CELL_DEGREES cell that has echo."""
+    step = radar_store.CELL_DEGREES
+    # pixel area: a fixed longitude step, rows uniform in Mercator so their height varies with latitude
+    width = (radar_store.EAST - radar_store.WEST) / WIDTH * 111.32 * np.cos(np.radians(lat))
+    edges = np.degrees(2 * np.arctan(np.exp(np.linspace(
+        math.log(math.tan(math.pi / 4 + math.radians(radar_store.NORTH) / 2)),
+        math.log(math.tan(math.pi / 4 + math.radians(radar_store.SOUTH) / 2)), HEIGHT + 1))) - math.pi / 2)
+    area = width * (np.abs(np.diff(edges)) * 110.574)[:, None]
+    with np.errstate(invalid='ignore'):
+        echo, heavy = dbz >= MIN_DBZ, dbz >= HEAVY_DBZ
+    keys = np.stack([np.round(lat / step), np.round(lon / step)], axis=-1)[echo]
+    out = []
+    for key in np.unique(keys, axis=0):
+        cell = echo & (np.round(lat / step) == key[0]) & (np.round(lon / step) == key[1])
+        out.append([round(float(key[0] * step), 2), round(float(key[1] * step), 2), round(float(area[cell].sum())),
+                    round(float(area[cell & heavy].sum())), round(float(np.nanmax(dbz[cell])), 1)])
+    return out
+
+
 def composite(sweeps, lat, lon):
     layers = [sample(s, lat, lon) for s in sweeps]
     with np.errstate(all='ignore'):
@@ -200,6 +224,17 @@ def collect(directory, html=None, opener=RangeFile, now=None):
         for ts, site, name in pending:
             try:
                 sweep = read_sweep(opener(FILE_URL + name))
+            except HTTPError as error:
+                # The page keeps listing volumes the server has already deleted: give up on those
+                # once they are old enough that a 404 cannot be an upload still in progress.
+                if error.code == 404 and now - ts > GONE_SECONDS:
+                    with conn:
+                        conn.execute('INSERT OR REPLACE INTO radar_files(name, site, ts, processed) VALUES (?, ?, ?, ?)',
+                                     (name, site, ts, now))
+                    logging.info('Radar file %s is gone (404), skipped', name)
+                else:
+                    logging.warning('Radar file %s not read: %s', name, error)
+                continue
             except Exception:
                 logging.exception('Radar file %s not read', name)
                 continue
@@ -212,13 +247,17 @@ def collect(directory, html=None, opener=RangeFile, now=None):
                 if candidates:
                     try:
                         latest[other] = (file_time(candidates[-1]), read_sweep(opener(FILE_URL + candidates[-1])))
+                    except HTTPError as error:
+                        logging.warning('Radar file %s not read: %s', candidates[-1], error)
                     except Exception:
                         logging.exception('Radar file %s not read', candidates[-1])
             used = sorted(s for s, (t, _) in latest.items() if 0 <= ts - t <= PAIR_SECONDS)
-            image = render(composite([latest[s][1] for s in used], lat, lon))
-            radar_store.frame_path(directory, ts).write_bytes(image)
+            field = composite([latest[s][1] for s in used], lat, lon)
+            radar_store.frame_path(directory, ts).write_bytes(render(field))
+            summary = json.dumps(cell_summary(field, lat, lon), separators=(',', ':'))
             with conn:
-                conn.execute('INSERT OR REPLACE INTO radar_frames(ts, sites) VALUES (?, ?)', (ts, ','.join(used)))
+                conn.execute('INSERT OR REPLACE INTO radar_frames(ts, sites, cells) VALUES (?, ?, ?)',
+                             (ts, ','.join(used), summary))
                 conn.execute('INSERT OR REPLACE INTO radar_files(name, site, ts, processed) VALUES (?, ?, ?, ?)',
                              (name, site, ts, now))
             made += 1

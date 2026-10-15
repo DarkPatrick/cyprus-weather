@@ -84,8 +84,19 @@ def test_drizzle_from_10_dbz_is_drawn_and_weaker_echo_is_not():
         assert (alpha.max() > 0) == visible
 
 
+def test_cell_summary_puts_the_echo_in_its_half_degree_cell():
+    grid = radar.grid()
+    field = radar.composite([radar.read_sweep(volume(*LCA, cell=(0, 50, 35), first_azimuth=200))], *grid)
+    cells = radar.cell_summary(field, *grid)
+    assert len(cells) == 1
+    lat, lon, echo, heavy, peak = cells[0]
+    assert (lat, lon) == (35.5, 33.5)  # 50 km north of Larnaca: 35.39 N, 33.57 E
+    assert 5 < echo < 40 and heavy == echo and peak == 35.0  # cell is ~4 km x 4 km
+    assert radar.cell_summary(np.full(field.shape, np.nan), *grid) == []
+
+
 def test_collect_pairs_both_radars_and_skips_known_files(tmp_path):
-    names = {'LONGRANGE_LCA_20261015085950_00.h5': volume(*LCA, cell=(0, 30, 35)),
+    names = {'LONGRANGE_LCA_20261015085950_00.h5': volume(*LCA, cell=(10, 30, 35)),
              'LONGRANGE_PFO_20261015090228_00.h5': volume(34.81, 32.43, cell=(180, 30, 45))}
     html = ' '.join(f'<a href="/uploads/radars/{n}">{n}</a>' for n in names)
     opener = lambda url: names[url.rsplit('/', 1)[-1]]
@@ -97,6 +108,23 @@ def test_collect_pairs_both_radars_and_skips_known_files(tmp_path):
     frames = radar_store.frames(str(tmp_path), 0, 2 ** 40)['frames']
     assert [f['sites'] for f in frames] == [['LCA'], ['LCA', 'PFO']]
     assert radar_store.frame_path(str(tmp_path), frames[-1]['ts']).is_file()
+    summary = radar_store.cells(str(tmp_path), 0, 2 ** 40)['frames']
+    assert [len(f['cells']) for f in summary] == [1, 2] and summary[-1]['sites'] == ['LCA', 'PFO']
+
+
+def test_deleted_volumes_are_skipped_but_fresh_404s_are_retried(tmp_path):
+    old, fresh = 'LONGRANGE_LCA_20261015080000_00.h5', 'LONGRANGE_PFO_20261015085500_00.h5'
+    html = ' '.join(f'<a href="/uploads/radars/{n}">{n}</a>' for n in (old, fresh))
+    calls = []
+
+    def gone(url):
+        calls.append(url.rsplit('/', 1)[-1])
+        raise HTTPError(url, 404, 'Not Found', {}, None)
+
+    now = radar.file_time(fresh) + 60
+    for _ in range(2):
+        assert radar.collect(str(tmp_path), html=html, opener=gone, now=now) == 0
+    assert calls == [old, fresh, fresh]  # the old one is given up after its first 404
 
 
 def test_api_lists_frames_and_serves_images(tmp_path):
@@ -104,7 +132,7 @@ def test_api_lists_frames_and_serves_images(tmp_path):
     directory = radar_store.default_dir(db)
     conn = radar_store.connect(directory)
     with conn:
-        conn.execute('INSERT INTO radar_frames VALUES (?, ?)', (1792054232, 'LCA,PFO'))
+        conn.execute('INSERT INTO radar_frames VALUES (?, ?, ?)', (1792054232, 'LCA,PFO', '[[35.0,33.5,120,10,41.5]]'))
     conn.close()
     radar_store.frame_path(directory, 1792054232).write_bytes(b'\x89PNG test')
     server = make_server('127.0.0.1', 0, db, str(tmp_path / 'ai'))
@@ -115,6 +143,9 @@ def test_api_lists_frames_and_serves_images(tmp_path):
         with urlopen(base + '/weather/radar?from=1792050000&to=1792060000') as response:
             data = json.load(response)
         assert data['frames'] == [{'ts': 1792054232, 'sites': ['LCA', 'PFO']}] and data['bounds'] == radar_store.BOUNDS
+        with urlopen(base + '/weather/radar-cells?from=1792050000&to=1792060000') as response:
+            cells = json.load(response)
+        assert cells['frames'] == [{'ts': 1792054232, 'sites': ['LCA', 'PFO'], 'cells': [[35.0, 33.5, 120, 10, 41.5]]}]
         with urlopen(base + '/radar/1792054232.png') as response:
             assert response.headers['Content-Type'] == 'image/png' and response.read() == b'\x89PNG test'
         for bad in ('/radar/../weather.db', '/radar/123.png', '/radar/1792054232.jpg'):

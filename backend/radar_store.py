@@ -4,6 +4,7 @@ The collector (backend/radar.py, with h5py/numpy/Pillow) writes one transparent 
 frame plus a row in radar.sqlite3. This module only reads them, so the API process needs
 no scientific libraries.
 """
+import json
 import re
 import sqlite3
 from pathlib import Path
@@ -17,6 +18,7 @@ SCHEMA = """CREATE TABLE IF NOT EXISTS radar_frames (
     ts INTEGER PRIMARY KEY, sites TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS radar_files (
     name TEXT PRIMARY KEY, site TEXT NOT NULL, ts INTEGER NOT NULL, processed INTEGER NOT NULL);"""
+CELL_DEGREES = 0.5
 
 
 def default_dir(db):
@@ -35,6 +37,10 @@ def connect(directory, readonly=False):
     conn = sqlite3.connect(path, timeout=30)
     conn.execute('PRAGMA journal_mode=WAL')
     conn.executescript(SCHEMA)
+    try:  # frames written before the per-cell summary existed
+        conn.execute('ALTER TABLE radar_frames ADD COLUMN cells TEXT')
+    except sqlite3.OperationalError:
+        pass
     return conn
 
 
@@ -52,6 +58,27 @@ def frames(directory, start, end):
         conn.close()
     return {'available': True, 'bounds': BOUNDS,
             'frames': [{'ts': ts, 'sites': sites.split(',')} for ts, sites in rows]}
+
+
+def cells(directory, start, end):
+    """Per-cell echo summary of the frames in [start, end], oldest first: what the AI forecast reads.
+
+    Each cell is [lat, lon, echo_km2, heavy_km2, max_dbz] for a CELL_DEGREES square (centre),
+    echo meaning at least radar.MIN_DBZ and heavy at least radar.HEAVY_DBZ; cells without echo
+    are left out, so an empty list is a frame with no rain anywhere in range.
+    """
+    if not (Path(directory) / 'radar.sqlite3').is_file():
+        return {'available': False, 'cell_degrees': CELL_DEGREES, 'frames': []}
+    conn = connect(directory, readonly=True)
+    try:
+        rows = conn.execute('SELECT ts, sites, cells FROM radar_frames WHERE ts BETWEEN ? AND ? AND cells IS NOT NULL '
+                            'ORDER BY ts', (start, end)).fetchall()
+    except sqlite3.OperationalError:
+        rows = []
+    finally:
+        conn.close()
+    return {'available': True, 'cell_degrees': CELL_DEGREES,
+            'frames': [{'ts': ts, 'sites': sites.split(','), 'cells': json.loads(c)} for ts, sites, c in rows]}
 
 
 def frame_bytes(directory, name):

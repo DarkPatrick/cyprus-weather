@@ -51,7 +51,7 @@ class Handler(BaseHTTPRequestHandler):
         if u.path.startswith('/api/radar/'):return self.radar_image(u.path.rsplit('/',1)[-1])
         global_routes={'/api/health','/api/weather/stations','/api/weather/forecast',
                        '/api/weather/marine','/api/weather/ai-forecast'}
-        range_routes={'/api/weather/lightning','/api/weather/map-history','/api/weather/radar'}
+        range_routes={'/api/weather/lightning','/api/weather/map-history','/api/weather/radar','/api/weather/radar-cells'}
         station_routes={'/api/weather/readings','/api/weather/uv','/api/weather/air',
                         '/api/weather/snapshot','/api/weather/model'}
         if u.path not in global_routes|range_routes|station_routes:
@@ -128,6 +128,7 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/health':return {'now':now,'collectors':[dict(r) for r in c.execute('SELECT * FROM collection_status')]}
             if path=='/api/weather/lightning':return lightning_readings.readings(self.lightning_db,lo,hi)
             if path=='/api/weather/radar':return radar_store.frames(self.radar_dir,lo,hi)
+            if path=='/api/weather/radar-cells':return radar_store.cells(self.radar_dir,lo,hi)
             if path=='/api/weather/stations':return weather.station_list(c)
             if path=='/api/weather/forecast':return content_languages.read_forecast(c)
             if path=='/api/weather/marine':
