@@ -363,11 +363,12 @@ function drawMap(){if(!map)return;layer.clearLayers();const offset=(+$('timeline
   marker.bindTooltip(`${esc(name(st.code))} · ${d?num(d.temp)+' °C · '+time(d.ts*1000):tr("map.noHourlyData")}${d?.wdir!=null?' · '+windDirection(d.wdir)+' '+num(d.wdir,0)+'°':''}${rain?' · '+tr('map.rainTooltip',{level:rain.name,mm:num(d.rain_30m)}):''}`);marker.on('click',()=>selectStation(st.code));
  }
  $('maprain').textContent=raining.length?tr('map.rainStations',{stations:raining.join(', ')}):rainAvailable?tr("map.noRain"):tr("map.noRainData");
- boltLayer.clearLayers();const trail=offset===0?4*3600:3600,indices=flashIndices(bolts,at,trail);
+ boltLayer.clearLayers();// The last hour, both now and at any point of the timeline.
+ const trail=3600,indices=flashIndices(bolts,at,trail);
  activeBolts=indices;const visible=indices.filter(i=>map.getBounds().contains([bolts.lat[i],bolts.lon[i]])).length;
  $('mapshowbolts').hidden=!indices.length||visible===indices.length;
  indices.forEach(i=>boltMarker(bolts,i,at,trail,boltCanvas).addTo(boltLayer));
- $('mapbolts').textContent=bolts?.available===false||!bolts?tr("map.noLightning"):tr('map.lightningCount',{period:tr(offset===0?'map.fourHours':'map.oneHour'),count:indices.length})+(visible<indices.length?' '+tr('map.visibleCount',{count:visible}):'')+' · EUMETSAT'+(bolts.window?' · '+tr('map.dataUntil',{date:date(bolts.window.end*1000)}):'');
+ $('mapbolts').textContent=bolts?.available===false||!bolts?tr("map.noLightning"):tr('map.lightningCount',{period:tr('map.oneHour'),count:indices.length})+(visible<indices.length?' '+tr('map.visibleCount',{count:visible}):'')+' · EUMETSAT'+(bolts.window?' · '+tr('map.dataUntil',{date:date(bolts.window.end*1000)}):'');
 }
 function showChart(key){if(key==='utci_sun')key='utci_shade';if(document.activeElement?.matches('[data-chart]'))document.activeElement.blur();chartKey=key;$('detail').showModal();requestAnimationFrame(()=>drawChart(key));}
 function drawChart(key){

@@ -322,7 +322,6 @@ export default {
   "map.rainStations": "Rain over 30 min: {stations}",
   "map.rainTooltip": "{level} rain: {mm} mm over 30 min",
   "map.lightningCount": "⚡ Lightning over {period}: {count}",
-  "map.fourHours": "4 hours",
   "map.oneHour": "1 hour",
   "map.visibleCount": "({count} visible)",
   "map.dataUntil": "data through {date}",

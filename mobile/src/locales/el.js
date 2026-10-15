@@ -322,7 +322,6 @@ export default {
   "map.rainStations": "Βροχή σε 30 λεπτά: {stations}",
   "map.rainTooltip": "Βροχή {level}: {mm} mm σε 30 λεπτά",
   "map.lightningCount": "⚡ Κεραυνοί σε {period}: {count}",
-  "map.fourHours": "4 ώρες",
   "map.oneHour": "1 ώρα",
   "map.visibleCount": "({count} ορατοί)",
   "map.dataUntil": "δεδομένα έως {date}",

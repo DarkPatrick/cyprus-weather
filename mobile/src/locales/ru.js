@@ -322,7 +322,6 @@ export default {
   "map.rainStations": "Дождь за 30 мин: {stations}",
   "map.rainTooltip": "{level} дождь: {mm} мм за 30 мин",
   "map.lightningCount": "⚡ Молнии за {period}: {count}",
-  "map.fourHours": "4 часа",
   "map.oneHour": "час",
   "map.visibleCount": "(видно {count})",
   "map.dataUntil": "данные до {date}",
