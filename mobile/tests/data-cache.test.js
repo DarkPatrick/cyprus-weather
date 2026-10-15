@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {cachedLoader,DATA_TTL,FAILURE_TTL} from '../src/data-cache.js';
-test('weather data reuses concurrent and rolling-window requests for ten minutes',async()=>{
+test('weather data reuses concurrent and rolling-window requests for DATA_TTL',async()=>{
  let at=0,calls=0;
  const load=cachedLoader(async path=>({path,request:++calls}),{clock:()=>at});
  const a=load('weather/readings?station=A&from=0&to=100&agg=hour');

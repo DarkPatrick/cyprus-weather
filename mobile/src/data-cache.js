@@ -1,4 +1,5 @@
-export const DATA_TTL=10*60*1000;
+// The server mirrors new station observations every minute; refresh every 5 minutes.
+export const DATA_TTL=5*60*1000;
 // Failures are still throttled (no retry storm against the API), but only briefly,
 // so a transient network drop does not pin an error on screen for the full TTL.
 export const FAILURE_TTL=30*1000;

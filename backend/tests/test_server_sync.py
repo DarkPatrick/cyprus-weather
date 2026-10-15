@@ -20,3 +20,21 @@ def test_mirror_updates_public_values_and_preserves_added_model_fields(tmp_path)
     assert d.execute("SELECT name FROM sqlite_master WHERE name='indoor'").fetchone() is None
     assert s.execute('SELECT secret FROM indoor').fetchone()==('private',)
     d.close();s.close()
+
+
+def test_fast_sync_copies_only_recent_observations(tmp_path):
+    import time
+    from sync_server import FAST_TABLES, FAST_WINDOW
+    source=str(tmp_path/'source.db');target=str(tmp_path/'target.db')
+    initialize(source)
+    now=int(time.time())
+    s=sqlite3.connect(source)
+    s.execute('INSERT INTO stations(code,lat,lon) VALUES(?,?,?)',('A',35,33))
+    s.executemany('INSERT INTO observations(station,ts,temp) VALUES(?,?,?)',[('A',now-FAST_WINDOW-600,10),('A',now-600,20)])
+    s.commit();s.close()
+    sync(source,target,FAST_TABLES,FAST_WINDOW)
+    d=sqlite3.connect(target)
+    assert d.execute('SELECT ts,temp FROM observations').fetchall()==[(now-600,20)]
+    assert d.execute('SELECT COUNT(*) FROM stations').fetchone()[0]==0
+    assert d.execute("SELECT COUNT(*) FROM collection_status WHERE source='existing_server'").fetchone()[0]==0
+    d.close()

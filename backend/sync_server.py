@@ -10,25 +10,35 @@ from import_history import TABLES
 from server import initialize
 import model
 
+# Every minute: only fresh station observations, the time-critical part.
+FAST_TABLES=('observations',)
+FAST_WINDOW=2*3600
+FAST_SECONDS=60
+# Every 5 minutes: everything for 8 days. Forecast and model rows are rewritten in place
+# (same timestamp, new values), so they cannot be picked up by "new rows only".
+FULL_WINDOW=8*86400
+FULL_SECONDS=300
 
-def sync(source,target):
+
+def sync(source,target,tables=TABLES,window=FULL_WINDOW):
     initialize(target)
     src=sqlite3.connect('file:'+source+'?mode=ro',uri=True,timeout=30)
     dest=model.connect(target)
     try:
         src.execute('BEGIN')
         with dest:
-            for table in TABLES:
+            for table in tables:
                 columns=[r[1] for r in src.execute(f'PRAGMA table_info("{table}")')]
                 local=[r[1] for r in dest.execute(f'PRAGMA table_info("{table}")')]
                 cols=[k for k in columns if k in local]
                 if not cols:continue
                 names=','.join('"'+k+'"' for k in cols)
                 query=f'SELECT {names} FROM "{table}"'
-                if 'ts' in cols:query+=' WHERE ts>='+str(int(time.time())-8*86400)
+                if 'ts' in cols:query+=' WHERE ts>='+str(int(time.time())-window)
                 updates=','.join(f'"{k}"=excluded."{k}"' for k in cols)
                 dest.executemany(f'INSERT INTO "{table}" ({names}) VALUES ({",".join("?" for _ in cols)}) ON CONFLICT DO UPDATE SET {updates}',src.execute(query))
             at=int(time.time())
+            if tuple(tables)!=tuple(TABLES):return
             dest.execute('INSERT INTO collection_status VALUES(?,?,?,NULL) ON CONFLICT(source) DO UPDATE SET attempted=excluded.attempted,succeeded=excluded.succeeded,error=NULL',('existing_server',at,at))
     finally:src.close();dest.close()
 
@@ -56,21 +66,24 @@ def collect_co(path):
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--source',required=True);p.add_argument('--db',required=True);p.add_argument('--loop',action='store_true');a=p.parse_args()
     logging.basicConfig(level=logging.INFO)
-    last_model=0
+    last_model=last_full=0
     while True:
+        full=time.time()-last_full>=FULL_SECONDS
         try:
             for attempt in range(30):
                 try:
-                    sync(a.source,a.db)
+                    if full:sync(a.source,a.db)
+                    else:sync(a.source,a.db,FAST_TABLES,FAST_WINDOW)
                     break
                 except sqlite3.OperationalError:
                     if attempt==29:raise
                     time.sleep(2)
-            logging.info('Public server history synced')
+            if full:
+                last_full=time.time();logging.info('Public server history synced')
             if time.time()-last_model>=3600:
                 model.collect(a.db);collect_co(a.db);last_model=time.time();logging.info('Hourly weather and CO models updated')
         except Exception:
             logging.exception('Server sync failed')
             if not a.loop:raise
         if not a.loop:break
-        time.sleep(300)
+        time.sleep(FAST_SECONDS)
