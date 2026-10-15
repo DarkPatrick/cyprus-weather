@@ -30,11 +30,11 @@ UA = {'User-Agent': 'cyprus-weather/0.1'}
 WIDTH, HEIGHT = 480, 400          # about 1 km per pixel
 PAIR_SECONDS = 12 * 60            # sweeps of the two radars combined into one frame
 KEEP_SECONDS = 26 * 3600
-MIN_DBZ = 15                      # weaker echoes are mostly noise and clutter
+MIN_DBZ = 10                      # weaker echoes are mostly noise and sea clutter
 MAX_RAY_GAP = 1.5                 # degrees between a pixel and the nearest ray
 LOOP_SECONDS = 180
 # dBZ lower bound -> colour, the usual rain-radar scale (drizzle blue to hail magenta).
-COLOURS = [(15, (140, 200, 255)), (20, (80, 160, 240)), (25, (30, 110, 220)), (30, (40, 180, 70)),
+COLOURS = [(10, (140, 200, 255)), (15, (80, 160, 240)), (20, (30, 110, 220)), (25, (20, 70, 190)), (30, (40, 180, 70)),
            (35, (20, 135, 45)), (40, (245, 215, 30)), (45, (250, 150, 20)), (50, (230, 45, 30)),
            (55, (165, 0, 40)), (60, (210, 50, 200))]
 ALPHA = 200

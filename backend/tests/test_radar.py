@@ -73,7 +73,15 @@ def test_composite_keeps_the_stronger_echo_and_render_is_transparent_elsewhere()
     image = np.array(Image.open(io.BytesIO(radar.render(field))))
     assert image.shape == (radar.HEIGHT, radar.WIDTH, 4)
     assert image[..., 3].max() == radar.ALPHA and (image[..., 3] == 0).mean() > 0.99
-    assert tuple(image[image[..., 3] > 0][0][:3]) == radar.COLOURS[7][1]  # 50-55 dBZ
+    assert tuple(image[image[..., 3] > 0][0][:3]) == dict(radar.COLOURS)[50]  # 50-55 dBZ
+
+
+def test_drizzle_from_10_dbz_is_drawn_and_weaker_echo_is_not():
+    grid = radar.grid()
+    for dbz, visible in ((12, True), (8, False)):
+        field = radar.composite([radar.read_sweep(volume(*LCA, cell=(90, 40, dbz)))], *grid)
+        alpha = np.array(Image.open(io.BytesIO(radar.render(field))))[..., 3]
+        assert (alpha.max() > 0) == visible
 
 
 def test_collect_pairs_both_radars_and_skips_known_files(tmp_path):
