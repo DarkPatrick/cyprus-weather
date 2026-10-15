@@ -414,3 +414,6 @@ header>div:first-child{min-width:0}.eyebrow{letter-spacing:1.5px}
  #app[data-tab=weather] .temperature-overview{padding-top:14px;padding-bottom:14px}
  #app[data-tab=weather] .weather-primary-row .card{min-height:0}
 }
+
+/* App version at the right end of the Sources line (float for list-item, auto margin for flex). */
+.app-version{float:right;margin-left:auto}
