@@ -3,7 +3,7 @@ import {stationName as name,sourceKind,airStation,contentText,climatePeriod} fro
 import {t as tr,getLanguage,setLanguage,locale,resolveLanguage} from './i18n.js';
 import {bindImageShrink} from './image-shrink.js';
 import {levelView,chartLevel} from './chart-levels.js';
-import {cachedLoader,DATA_TTL} from './data-cache.js';
+import {cachedLoader,DATA_TTL,FAILURE_TTL} from './data-cache.js';
 import {gpsElevation,NEAR_STATION_KM} from './elevation.js';
 import {anonymousId,visitTracker} from './visits.js';
 import {conditionView} from './conditions.js';
@@ -278,9 +278,12 @@ async function refreshNow(){
   if(!state.stations.some(s=>s.code===state.station))state.station=state.stations.find(s=>s.code==='LIMASSOL')?.code||state.stations[0]?.code||'';
   $('station').value=state.station;
   await loadStation();
+  // An open map follows too, unless it is playing the timeline back.
+  if(map&&$('mapwrap').open&&!mapTimer){await loadMapData();drawMap();}
  }catch(e){state.errors.push(tr('error.network'));$('status').textContent=tr("error.stations");$('errors').innerHTML=`<div class="error">${esc(tr('error.network'))}</div>`;render();}
  // Set after loading, so every cached response is at least this old when the check fires.
- finally{$('refresh').disabled=false;lastRefresh=now();}
+ // After a failure the next attempt comes once the failed responses leave the cache.
+ finally{$('refresh').disabled=false;lastRefresh=now()-(state.errors.length?DATA_TTL-FAILURE_TTL:0);}
 }
 async function selectStation(code){state.station=code;localStorage.setItem('station',code);$('station').value=code;for(const k of ['snapshot','obs','model','uv','air','pressureObs'])state[k]=null;render();await loadStation();drawMap();}
 async function loadStation(){
@@ -371,13 +374,19 @@ async function openMap(){
  showLocation();
  map.off('zoomend moveend',drawMap);map.on('zoomend moveend',drawMap);
  requestAnimationFrame(()=>map.invalidateSize());drawMap();
- const t=Math.floor(now()/600000)*600;$('mapplay').disabled=true;
- const results=await Promise.allSettled([api(`weather/map-history?from=${t-86400-1800}&to=${t}`),api(`weather/lightning?from=${t-25*3600}&to=${t}`),api(`weather/radar?from=${t-25*3600}&to=${t+600}`)]);
- radarFrames=results[2].status==='fulfilled'?results[2].value:null;
- if(results[0].status==='fulfilled'){history=results[0].value;historyEnd=t;}
- bolts=results[1].status==='fulfilled'?results[1].value:null;
+ $('mapplay').disabled=true;
+ const historyOk=await loadMapData();
  $('mapplay').disabled=!history;drawMap();
- if(results[0].status==='rejected')$('maptime').textContent=tr("map.historyUnavailable");
+ if(!historyOk&&!history)$('maptime').textContent=tr("map.historyUnavailable");
+}
+// The map's 24 hours (station history, lightning, radar frames); a failed part keeps what it had.
+async function loadMapData(){
+ const t=Math.floor(now()/600000)*600;
+ const [hist,flashes,radar]=await Promise.allSettled([api(`weather/map-history?from=${t-86400-1800}&to=${t}`),api(`weather/lightning?from=${t-25*3600}&to=${t}`),api(`weather/radar?from=${t-25*3600}&to=${t+600}`)]);
+ if(hist.status==='fulfilled'){history=hist.value;historyEnd=t;}
+ if(flashes.status==='fulfilled')bolts=flashes.value;
+ if(radar.status==='fulfilled')radarFrames=radar.value;
+ return hist.status==='fulfilled';
 }
 function stopMap(){clearInterval(mapTimer);mapTimer=null;$('mapplay').textContent='▶';$('mapplay').setAttribute('aria-label',tr("map.play"));$('mapplay').setAttribute('aria-pressed','false');}
 function drawRadar(at){
@@ -489,11 +498,7 @@ function drawChart(key){
  series.push({name:tr("chart.nowBoundary"),type:'line',data:[],markLine:{symbol:'none',silent:true,label:{formatter:tr("common.nowLower")},lineStyle:{color:'#6a867b',type:'dotted'},data:[{xAxis:t}]}});
  chart.setOption({backgroundColor:'transparent',color:dark?['#7fb8de','#e08a62','#a3b46a','#d07fa8']:['#1f5f8b','#c4683f','#6f7f3e','#b3427a'],animation:false,tooltip:{trigger:'axis',confine:true,extraCssText:'max-width:min(280px,80vw);white-space:normal;overflow-wrap:anywhere;',valueFormatter:v=>num(v),formatter:params=>`${date(params[0]?.value?.[0])}<br>`+params.filter(p=>p.value?.[1]!=null).map(p=>`${p.marker}${esc(p.seriesName)}: ${num(p.value[1])}${chartLevel(key,p.value[1],height)&&(key!=='radiation'||p.seriesName.includes('UV'))?' · '+esc(chartLevel(key,p.value[1],height)):''}`).join('<br>')},legend:{type:'scroll',bottom:0,data:[...new Set(series.filter(s=>s.name!==tr("chart.nowBoundary")).map(s=>s.name))],textStyle:{fontSize:10}},grid:{left:55,right:axes.length>1?50:20,top:35,bottom:72},xAxis:{type:'time',min:from,max:to,minInterval:key==='sst'?24*HOUR:HOUR,axisLabel:{formatter:v=>key==='sst'?new Date(v).toLocaleDateString(locale(),{timeZone:'Asia/Nicosia',day:'2-digit',month:'2-digit'}):time(v),fontSize:10},splitLine:{show:false}},yAxis:axes,dataZoom:[{type:'inside',filterMode:'none'}],series});
 }
-async function periodicRefresh(){
- try{if(!document.hidden)await refresh();}
- finally{setTimeout(periodicRefresh,DATA_TTL);}
-}
-fillShell();start().finally(()=>setTimeout(periodicRefresh,DATA_TTL));
+fillShell();start();
 
 // Anonymous visit count: one request per app open, fire-and-forget; dev builds are not counted.
 const visits=visitTracker(()=>{
@@ -505,7 +510,6 @@ visits.open();
 document.addEventListener('visibilitychange',()=>document.hidden?visits.hide():visits.show());
 if(Capacitor.isNativePlatform()){App.addListener('pause',()=>visits.hide());App.addListener('resume',()=>visits.show());}
 
-setInterval(async()=>{if(map&&$('mapwrap').open&&!document.hidden){try{const t=Math.floor(now()/1000);bolts=await api(`weather/lightning?from=${t-25*3600}&to=${t}`);radarFrames=await api(`weather/radar?from=${t-25*3600}&to=${t+600}`).catch(()=>radarFrames);drawMap();}catch(e){$('mapbolts').textContent=tr("map.noLightning");}}},DATA_TTL);
 
 function updateAICardTimes(){
  if(state.tab!=='forecast'||document.hidden)return;
@@ -519,7 +523,11 @@ function updateAICardTimes(){
 }
 setInterval(updateAICardTimes,1000);
 document.addEventListener('visibilitychange',updateAICardTimes);
-// The periodic timer skips refreshes while hidden, so catch up on return to the app.
+// Auto refresh: a frequent check against the wall clock rather than one long timer, so it
+// neither waits for the startup location request nor drifts when Android throttles or
+// freezes the app in the background; returning to the app catches up at once.
+const REFRESH_CHECK=30*1000;
 function refreshIfStale(){if(!document.hidden&&lastRefresh&&now()-lastRefresh>=DATA_TTL)refresh();}
+setInterval(refreshIfStale,REFRESH_CHECK);
 document.addEventListener('visibilitychange',refreshIfStale);
 if(Capacitor.isNativePlatform())App.addListener('resume',refreshIfStale);
