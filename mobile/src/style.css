@@ -417,3 +417,11 @@ header>div:first-child{min-width:0}.eyebrow{letter-spacing:1.5px}
 
 /* App version at the right end of the Sources line (float for list-item, auto margin for flex). */
 .app-version{float:right;margin-left:auto}
+
+/* Rain radar on the forecast tab. */
+.radar-tabs{display:flex;gap:6px;margin:0 0 10px;flex-wrap:wrap}
+.radar-tabs button{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:7px 12px;font-size:13px}
+.radar-tabs button[aria-selected=true]{background:var(--accent-soft);border-color:var(--accent-soft-border);color:var(--accent);font-weight:600}
+.radar-tabs button:disabled{opacity:.45}
+.radar-image img{width:100%;display:block}
+.radar-note{font-size:12px;line-height:1.5;margin:8px 0 18px}

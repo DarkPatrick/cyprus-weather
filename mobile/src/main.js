@@ -38,6 +38,11 @@ localStorage.removeItem('altitude');
 let positionRequest=null,locationMarker=null,shellEvents=false,languageGeneration=0;
 let map=null,layer=null,boltLayer=null,boltCanvas=null,bolts=null,activeBolts=[],history=null,historyEnd=null,mapTimer=null,chart=null,chartKey=null;
 const now=()=>Date.now();
+// Rain radar images on dom.org.cy are replaced in place; the server records when each last
+// changed. A radar idle for 3 hours is hidden (the service runs 15 October - 15 June).
+const RADAR_IMAGES=['RADAR_Static.png','RADAR_PFO_MAX_Static.png','RADAR_LCA_MAX_Static.png'];
+const RADAR_FRESH_S=3*3600;
+let radarImage=RADAR_IMAGES[0];
 const PRIVACY_URL='https://darkpatrick.github.io/cyprus-weather/privacy-policy.html';
 const CONTACT_EMAIL='egor.semin.cy@gmail.com';
 const loadAPI=cachedLoader(async path=>{
@@ -105,7 +110,7 @@ function fillShell(){
  $('mapwind').checked=localStorage.getItem('mapWind')==='true';
  $('mapwind').onchange=()=>{localStorage.setItem('mapWind',String($('mapwind').checked));drawMap();};
  $('mapplay').onclick=()=>{if(mapTimer){stopMap();return;}if(!history)return;const r=$('timeline');if(+r.value>=144)r.value=0;drawMap();$('mapplay').textContent='❚❚';$('mapplay').setAttribute('aria-label',tr("map.pause"));$('mapplay').setAttribute('aria-pressed','true');mapTimer=setInterval(()=>{r.value=Math.min(144,+r.value+1);drawMap();if(+r.value===144)stopMap();},350);};
- $('content').onclick=e=>{const c=e.target.closest('[data-chart]');if(c)showChart(c.dataset.chart);const f=e.target.closest('[data-forecast]');if(f)openForecast(f);const image=e.target.closest('[data-image]');if(image)openForecastImage(image);};
+ $('content').onclick=e=>{const c=e.target.closest('[data-chart]');if(c)showChart(c.dataset.chart);const f=e.target.closest('[data-forecast]');if(f)openForecast(f);const image=e.target.closest('[data-image]');if(image)openForecastImage(image);const radar=e.target.closest('[data-radar]');if(radar){radarImage=radar.dataset.radar;render();}};
  document.querySelectorAll('.tabs [data-tab]').forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;document.querySelectorAll('.tabs [data-tab]').forEach(x=>x.setAttribute('aria-selected',String(x===b)));render();});
  $('forecastclose').onclick=()=>$('forecastdetail').close();
  $('forecastdetail').addEventListener('close',()=>{$('forecastbody').innerHTML='';$('forecastdetail').classList.remove('image-viewer');});
@@ -194,7 +199,8 @@ function render(){
   const sourceText=[sources.length?tr('air.observationSources',{sources:sources.join('; ')}):'',modelCards.length?tr('air.modelCards',{pollutants:modelCards.join(', ')}):'',state.air?tr("air.modelForecast"):''].filter(Boolean).join('. ');
   html+=`</div><p class="muted air-sources">${esc(sourceText||tr("common.sourcesUnavailable"))}</p>`;
  }else{
-  html=`<div class="sectiontitle"><h2>${tr("nav.forecast")}</h2><small>${tr("forecast.service")}</small></div>`;
+  html=renderRadar();
+  html+=`<div class="sectiontitle"><h2>${tr("nav.forecast")}</h2><small>${tr("forecast.service")}</small></div>`;
   const f=state.forecast;
   html+='<div class="forecast-cards">';
   for(const entry of orderedBulletins(f?.bulletins)){const issue=entry.issue,b=entry.issued!=null?entry:null,label={A:tr("forecast.morning"),B:tr("forecast.day"),C:tr("forecast.evening")}[issue];
@@ -212,6 +218,23 @@ function render(){
  $('content').querySelectorAll('img').forEach(img=>img.onerror=()=>{img.replaceWith(Object.assign(document.createElement('p'),{className:'muted',textContent:tr("common.imageUnavailable")}));});
  const ts=s.latest_ts; $('status').textContent=`${name(st.code)} · ${ts?tr('status.observation',{date:date(ts*1000)}):tr("status.noCurrent")}`;
  $('errors').innerHTML=state.errors.map(e=>`<div class="error">${esc(e)}</div>`).join('');
+}
+function renderRadar(){
+ const status=state.marine?.radar||{},at=now()/1000;
+ const fresh=image=>status[image]&&at-status[image]<RADAR_FRESH_S;
+ const available=RADAR_IMAGES.filter(fresh);
+ let html=`<div class="sectiontitle"><h2>${tr("radar.title")}</h2><small>${tr("radar.source")}</small></div>`;
+ if(!available.length){
+  const newest=Math.max(0,...Object.values(status).filter(Boolean));
+  return html+`<p class="muted radar-note">${esc(newest?tr("radar.idle",{date:date(newest*1000)}):tr("radar.unknown"))}</p>`;
+ }
+ if(!available.includes(radarImage))radarImage=available[0];
+ const labels={RADAR_Static:'radar.both',RADAR_PFO_MAX_Static:'radar.paphos',RADAR_LCA_MAX_Static:'radar.larnaca'};
+ const label=image=>tr(labels[image.replace('.png','')]);
+ html+=`<div class="radar-tabs" role="tablist">${RADAR_IMAGES.map(image=>`<button type="button" data-radar="${image}" role="tab" aria-selected="${image===radarImage}" ${fresh(image)?'':'disabled'}>${label(image)}</button>`).join('')}</div>`;
+ // The browser cache is busted once per 5 minutes.
+ html+=`<button class="forecast-image-link forecast-image radar-image" data-image aria-label="${tr("radar.open")}"><img draggable="false" src="https://www.dom.org.cy/RADAR_IMG/${radarImage}?t=${Math.floor(now()/300000)}" alt="${esc(tr("radar.title")+' · '+label(radarImage))}"></button>`;
+ return html+`<p class="muted radar-note">${tr("radar.legend")}</p>`;
 }
 function renderClimate(doc){if(!doc)return tr("forecast.documentPending");return `<p class="muted">${esc(climatePeriod(doc.period))}</p><p>${esc(doc.title)}</p>${doc.summary?`<p>${esc(contentText(doc.summary))}</p>`:''}${Object.entries(doc.sections||{}).map(([k,v])=>`<p><b>${esc(tr("climate."+k))}</b><br>${esc(contentText(v))}</p>`).join('')}${doc.rain_mm!=null?`<p>${tr("forecast.rainNormal",{mm:num(doc.rain_mm),percent:num(doc.rain_pct)})}</p>`:''}${doc.url?`<a href="${esc(doc.url)}" target="_blank" rel="noreferrer">${tr("forecast.originalPdf")}</a>`:''}`;}
 function probabilityCell(value){
