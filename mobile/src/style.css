@@ -430,3 +430,8 @@ header>div:first-child{min-width:0}.eyebrow{letter-spacing:1.5px}
 @media(max-width:649px){
  .forecast-cards:not(.ai-cards) .value{font-size:min(20px,4.2vw);overflow-wrap:normal;word-break:keep-all}
 }
+
+/* Radar legend under the station map. */
+.radar-legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin:8px 0 0;font-size:11px;color:var(--muted)}
+.radar-legend[hidden]{display:none}
+.radar-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}

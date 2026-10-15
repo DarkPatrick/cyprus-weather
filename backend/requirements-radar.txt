@@ -1,0 +1,4 @@
+# Only the radar collector (backend/radar.py) needs these; the API does not.
+h5py>=3.11,<4
+numpy>=2,<3
+pillow>=10,<12

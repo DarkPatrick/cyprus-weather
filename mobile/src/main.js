@@ -36,6 +36,9 @@ const state={stations:[],station:localStorage.getItem('station')||'',tab:'weathe
 // Elevation is no longer entered by hand; drop the value older builds stored.
 localStorage.removeItem('altitude');
 let positionRequest=null,locationMarker=null,shellEvents=false,languageGeneration=0;
+// Radar frames over the station map; a frame is shown for up to 30 minutes after its scan.
+const RADAR_MAP_WINDOW=30*60;
+let radarFrames=null,radarOverlay=null;
 let map=null,layer=null,boltLayer=null,boltCanvas=null,bolts=null,activeBolts=[],history=null,historyEnd=null,mapTimer=null,chart=null,chartKey=null;
 const now=()=>Date.now();
 // Rain radar images on dom.org.cy are replaced in place; the server records when each last
@@ -93,7 +96,7 @@ function fillShell(){
  $('app').innerHTML=`<main class="shell"><header><div><div class="eyebrow">${tr("brand.subtitle")}</div><h1>${tr("brand.name")}</h1></div><div class="header-actions"><button class="brandmark language-toggle" id="language" type="button" aria-label="${tr("language.select")}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 7h14M5 17h14"/></svg></button><button class="brandmark" id="theme" type="button" aria-label="${tr("theme.dark")}" aria-pressed="false"><span aria-hidden="true">☀</span></button></div></header>
  <section id="warnings" aria-label="${tr("warnings.title")}" hidden></section>
  <div class="toolbar"><select id="station" aria-label="${tr("aria.weatherStation")}"><option>${tr("common.loadingStations")}</option></select><button class="icon" id="locate" aria-label="${tr("aria.nearestStation")}"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 22s7-6.2 7-13a7 7 0 1 0-14 0c0 6.8 7 13 7 13Z"/><circle cx="12" cy="9" r="2.5"/></svg></button><button class="icon" id="refresh" aria-label="${tr("aria.refresh")}">↻</button></div>
- <details class="mapwrap" id="mapwrap"><summary>${tr("map.stations")} <span class="muted">${tr("map.24hours")}</span></summary><div id="map" aria-label="${tr("map.cyprus")}"></div><div class="timeline"><div class="player"><button id="mapplay" aria-label="${tr("map.play")}" aria-pressed="false">▶</button><input id="timeline" aria-label="${tr("map.observationTime")}" type="range" min="0" max="144" value="144" step="1"></div><div class="mapoptions"><span id="maptime">${tr("common.now")}</span><label title="${tr("map.windHelp")}"><input type="checkbox" id="mapwind"> ${tr("weather.wind")}</label></div><div class="maplegend" aria-label="${tr("map.temperatureScale")}"><span>0°</span><span>12°</span><span>20°</span><span>28°</span><span>36°</span></div><div class="map-events"><div id="maprain"></div><div id="mapbolts"></div><div class="map-attribution">${tr("map.lightningAttribution",{year:new Date().getFullYear()})}</div><button id="mapshowbolts" class="mapshowbolts" hidden>${tr("map.allLightning")}</button></div></div></details>
+ <details class="mapwrap" id="mapwrap"><summary>${tr("map.stations")} <span class="muted">${tr("map.24hours")}</span></summary><div id="map" aria-label="${tr("map.cyprus")}"></div><div class="timeline"><div class="player"><button id="mapplay" aria-label="${tr("map.play")}" aria-pressed="false">▶</button><input id="timeline" aria-label="${tr("map.observationTime")}" type="range" min="0" max="144" value="144" step="1"></div><div class="mapoptions"><span id="maptime">${tr("common.now")}</span><label title="${tr("map.windHelp")}"><input type="checkbox" id="mapwind"> ${tr("weather.wind")}</label><label title="${tr("map.radarHelp")}"><input type="checkbox" id="mapradar"> ${tr("map.radar")}</label></div><div class="radar-legend" id="mapradarlegend" hidden><span><i style="background:rgb(80,160,240)"></i>${tr("map.radarLight")}</span><span><i style="background:rgb(40,180,70)"></i>${tr("map.radarModerate")}</span><span><i style="background:rgb(245,215,30)"></i>${tr("map.radarHeavy")}</span><span><i style="background:rgb(230,45,30)"></i>${tr("map.radarStorm")}</span></div><div class="maplegend" aria-label="${tr("map.temperatureScale")}"><span>0°</span><span>12°</span><span>20°</span><span>28°</span><span>36°</span></div><div class="map-events"><div id="mapradarinfo"></div><div id="maprain"></div><div id="mapbolts"></div><div class="map-attribution">${tr("map.lightningAttribution",{year:new Date().getFullYear()})}</div><button id="mapshowbolts" class="mapshowbolts" hidden>${tr("map.allLightning")}</button></div></div></details>
  <div id="status" class="status" role="status">${tr("common.loading")}</div><div id="errors" role="alert"></div><section id="content"></section>
  <footer class="footer"><span class="footer-caption">${tr("sources.caption")}</span><details><summary>${tr("common.sources")}<span class="app-version">v${__APP_VERSION__}</span></summary><p>${tr("sources.main")}</p><p class="attribution-source">${tr("sources.attribution",{year:new Date().getFullYear()})}</p><p class="disclaimer">${tr("legal.disclaimer")}</p><p class="lightning-source">${tr("sources.lightning",{year:new Date().getFullYear()})} <a href="https://www.eumetsat.int/legal-framework/data-policy" target="_blank" rel="noreferrer">${tr("sources.eumetsatPolicy")}</a>.</p><p class="location-help">${tr("settings.altitudeHelp")}</p><p><a href="https://www.dom.org.cy/" target="_blank" rel="noreferrer">CyDoM</a> · <a href="https://www.airquality.dli.mlsi.gov.cy/" target="_blank" rel="noreferrer">DLI</a> · <a href="https://open-meteo.com/" target="_blank" rel="noreferrer">Open-Meteo</a> · <a href="${PRIVACY_URL}" target="_blank" rel="noreferrer">${tr("legal.privacy")}</a></p></details></footer></main>
  <nav class="tabs" role="tablist" aria-label="${tr("nav.sections")}"><button data-tab="weather" role="tab" aria-selected="true"><b>☁</b>${tr("nav.weather")}</button><button data-tab="sun" role="tab" aria-selected="false"><b>☀</b>${tr("nav.sun")}</button><button data-tab="air" role="tab" aria-selected="false"><b>≋</b>${tr("nav.air")}</button><button data-tab="forecast" role="tab" aria-selected="false"><b>▤</b>${tr("nav.forecast")}</button></nav>
@@ -109,6 +112,8 @@ function fillShell(){
  $('mapshowbolts').onclick=()=>{if(activeBolts.length)map.fitBounds(activeBolts.map(i=>[bolts.lat[i],bolts.lon[i]]).concat(state.stations.map(st=>[st.lat,st.lon])),{padding:[20,20]});};
  $('mapwind').checked=localStorage.getItem('mapWind')==='true';
  $('mapwind').onchange=()=>{localStorage.setItem('mapWind',String($('mapwind').checked));drawMap();};
+ $('mapradar').checked=localStorage.getItem('mapRadar')!=='false';
+ $('mapradar').onchange=()=>{localStorage.setItem('mapRadar',String($('mapradar').checked));drawMap();};
  $('mapplay').onclick=()=>{if(mapTimer){stopMap();return;}if(!history)return;const r=$('timeline');if(+r.value>=144)r.value=0;drawMap();$('mapplay').textContent='❚❚';$('mapplay').setAttribute('aria-label',tr("map.pause"));$('mapplay').setAttribute('aria-pressed','true');mapTimer=setInterval(()=>{r.value=Math.min(144,+r.value+1);drawMap();if(+r.value===144)stopMap();},350);};
  $('content').onclick=e=>{const c=e.target.closest('[data-chart]');if(c)showChart(c.dataset.chart);const f=e.target.closest('[data-forecast]');if(f)openForecast(f);const image=e.target.closest('[data-image]');if(image)openForecastImage(image);const radar=e.target.closest('[data-radar]');if(radar){radarImage=radar.dataset.radar;render();}};
  document.querySelectorAll('.tabs [data-tab]').forEach(b=>b.onclick=()=>{state.tab=b.dataset.tab;document.querySelectorAll('.tabs [data-tab]').forEach(x=>x.setAttribute('aria-selected',String(x===b)));render();});
@@ -362,19 +367,35 @@ async function start(){
  if(p){try{await applyPosition(p);}catch{/* The default or manually selected station stays available. */}}
 }
 async function openMap(){
- if(!map){map=L.map('map',{zoomControl:false}).setView([35.05,33.1],8);L.control.zoom({zoomInTitle:tr('map.zoomIn'),zoomOutTitle:tr('map.zoomOut')}).addTo(map);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',maxZoom:18}).addTo(map);layer=L.layerGroup().addTo(map);boltLayer=L.layerGroup().addTo(map);boltCanvas=L.canvas({padding:.2}); if(state.stations.length)map.fitBounds(state.stations.map(s=>[s.lat,s.lon]),{padding:[25,25],maxZoom:8});}
+ if(!map){map=L.map('map',{zoomControl:false}).setView([35.05,33.1],8);L.control.zoom({zoomInTitle:tr('map.zoomIn'),zoomOutTitle:tr('map.zoomOut')}).addTo(map);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',maxZoom:18}).addTo(map);map.createPane('radar').style.zIndex=350;radarOverlay=null;layer=L.layerGroup().addTo(map);boltLayer=L.layerGroup().addTo(map);boltCanvas=L.canvas({padding:.2}); if(state.stations.length)map.fitBounds(state.stations.map(s=>[s.lat,s.lon]),{padding:[25,25],maxZoom:8});}
  showLocation();
  map.off('zoomend moveend',drawMap);map.on('zoomend moveend',drawMap);
  requestAnimationFrame(()=>map.invalidateSize());drawMap();
  const t=Math.floor(now()/600000)*600;$('mapplay').disabled=true;
- const results=await Promise.allSettled([api(`weather/map-history?from=${t-86400-1800}&to=${t}`),api(`weather/lightning?from=${t-25*3600}&to=${t}`)]);
+ const results=await Promise.allSettled([api(`weather/map-history?from=${t-86400-1800}&to=${t}`),api(`weather/lightning?from=${t-25*3600}&to=${t}`),api(`weather/radar?from=${t-25*3600}&to=${t+600}`)]);
+ radarFrames=results[2].status==='fulfilled'?results[2].value:null;
  if(results[0].status==='fulfilled'){history=results[0].value;historyEnd=t;}
  bolts=results[1].status==='fulfilled'?results[1].value:null;
  $('mapplay').disabled=!history;drawMap();
  if(results[0].status==='rejected')$('maptime').textContent=tr("map.historyUnavailable");
 }
 function stopMap(){clearInterval(mapTimer);mapTimer=null;$('mapplay').textContent='▶';$('mapplay').setAttribute('aria-label',tr("map.play"));$('mapplay').setAttribute('aria-pressed','false');}
-function drawMap(){if(!map)return;layer.clearLayers();const offset=(+$('timeline').value-144)/6,at=(offset===0?Math.floor(now()/1000):historyEnd||Math.floor(now()/1000))+offset*3600;$('maptime').textContent=offset===0?tr("common.now"):date(at*1000);
+function drawRadar(at){
+ const enabled=$('mapradar').checked,list=radarFrames?.frames||[];
+ $('mapradarlegend').hidden=!enabled;
+ let frame=null;
+ if(enabled)for(const f of list)if(f.ts<=at&&at-f.ts<=RADAR_MAP_WINDOW)frame=f;
+ if(!frame){
+  radarOverlay?.remove();radarOverlay=null;
+  $('mapradarinfo').textContent=enabled?tr(list.length?'map.radarNone':'map.radarOff'):'';
+  return;
+ }
+ const url=`${base}/api/radar/${frame.ts}.png`;
+ if(!radarOverlay)radarOverlay=L.imageOverlay(url,radarFrames.bounds,{pane:'radar',opacity:.85,interactive:false}).addTo(map);
+ else if(radarOverlay._url!==url)radarOverlay.setUrl(url);
+ $('mapradarinfo').textContent=tr('map.radarFrame',{time:time(frame.ts*1000)});
+}
+function drawMap(){if(!map)return;layer.clearLayers();const offset=(+$('timeline').value-144)/6,at=(offset===0?Math.floor(now()/1000):historyEnd||Math.floor(now()/1000))+offset*3600;$('maptime').textContent=offset===0?tr("common.now"):date(at*1000);drawRadar(at);
  const raining=[];let rainAvailable=false;
  const positions=state.stations.map(st=>{const p=map.latLngToContainerPoint([st.lat,st.lon]);return {code:st.code,x:p.x,y:p.y};});
  for(let i=0;i<state.stations.length;i++){
@@ -484,7 +505,7 @@ visits.open();
 document.addEventListener('visibilitychange',()=>document.hidden?visits.hide():visits.show());
 if(Capacitor.isNativePlatform()){App.addListener('pause',()=>visits.hide());App.addListener('resume',()=>visits.show());}
 
-setInterval(async()=>{if(map&&$('mapwrap').open&&!document.hidden){try{const t=Math.floor(now()/1000);bolts=await api(`weather/lightning?from=${t-25*3600}&to=${t}`);drawMap();}catch(e){$('mapbolts').textContent=tr("map.noLightning");}}},DATA_TTL);
+setInterval(async()=>{if(map&&$('mapwrap').open&&!document.hidden){try{const t=Math.floor(now()/1000);bolts=await api(`weather/lightning?from=${t-25*3600}&to=${t}`);radarFrames=await api(`weather/radar?from=${t-25*3600}&to=${t+600}`).catch(()=>radarFrames);drawMap();}catch(e){$('mapbolts').textContent=tr("map.noLightning");}}},DATA_TTL);
 
 function updateAICardTimes(){
  if(state.tab!=='forecast'||document.hidden)return;

@@ -16,14 +16,16 @@ from response_cache import ResponseCache
 import content_languages
 import visits
 import conditions
+import radar_store
 
 def initialize(path):
     for connect in (dom.connect,uv.connect,air.connect,forecast.connect,model.connect):
         connect(path).close()
 
 class Handler(BaseHTTPRequestHandler):
-    def __init__(self,*a,db_path,ai_dir,lightning_db=None,translations_db=None,visits_db=None,**kw):
+    def __init__(self,*a,db_path,ai_dir,lightning_db=None,translations_db=None,visits_db=None,radar_dir=None,**kw):
         self.db_path=db_path; self.ai_dir=ai_dir; self.lightning_db=lightning_db
+        self.radar_dir=radar_dir or radar_store.default_dir(db_path)
         self.visits_db=visits_db or visits.default_path(db_path)
         self.translations_db=translations_db or content_languages.cache_path(db_path)
         super().__init__(*a,**kw)
@@ -46,9 +48,10 @@ class Handler(BaseHTTPRequestHandler):
         u=urlparse(self.path); q=parse_qs(u.query); now=int(time.time())
         # GET because nginx forwards only GET to this API; never cached, no body.
         if u.path=='/api/visit':return self.record_visit(q.get('id',[''])[0],now)
+        if u.path.startswith('/api/radar/'):return self.radar_image(u.path.rsplit('/',1)[-1])
         global_routes={'/api/health','/api/weather/stations','/api/weather/forecast',
                        '/api/weather/marine','/api/weather/ai-forecast'}
-        range_routes={'/api/weather/lightning','/api/weather/map-history'}
+        range_routes={'/api/weather/lightning','/api/weather/map-history','/api/weather/radar'}
         station_routes={'/api/weather/readings','/api/weather/uv','/api/weather/air',
                         '/api/weather/snapshot','/api/weather/model'}
         if u.path not in global_routes|range_routes|station_routes:
@@ -98,6 +101,17 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             logging.exception('API request failed');self.respond({'error':'Weather data temporarily unavailable'},503)
 
+    def radar_image(self,name):
+        body=radar_store.frame_bytes(self.radar_dir,name)
+        if body is None:return self.respond({'error':'Not found'},404)
+        self.send_response(200)
+        self.send_header('Content-Type','image/png')
+        self.send_header('Content-Length',str(len(body)))
+        # A frame never changes once written.
+        self.send_header('Cache-Control','public, max-age=86400, immutable')
+        self.send_header('Access-Control-Allow-Origin','*')
+        self.end_headers();self.wfile.write(body)
+
     def record_visit(self,anonymous_id,now):
         if not visits.valid_id(anonymous_id):return self.respond({'error':'Invalid anonymous id'},400)
         try:visits.record(self.visits_db,anonymous_id,now)
@@ -113,6 +127,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if path=='/api/health':return {'now':now,'collectors':[dict(r) for r in c.execute('SELECT * FROM collection_status')]}
             if path=='/api/weather/lightning':return lightning_readings.readings(self.lightning_db,lo,hi)
+            if path=='/api/weather/radar':return radar_store.frames(self.radar_dir,lo,hi)
             if path=='/api/weather/stations':return weather.station_list(c)
             if path=='/api/weather/forecast':return content_languages.read_forecast(c)
             if path=='/api/weather/marine':
@@ -138,17 +153,17 @@ class WeatherServer(ThreadingHTTPServer):
     request_queue_size=256
     daemon_threads=True
 
-def make_server(host,port,path,ai_dir='data/ai',lightning_db=None,translations_db=None,visits_db=None):
+def make_server(host,port,path,ai_dir='data/ai',lightning_db=None,translations_db=None,visits_db=None,radar_dir=None):
     initialize(path)
-    server=WeatherServer((host,port),partial(Handler,db_path=path,ai_dir=ai_dir,lightning_db=lightning_db,translations_db=translations_db,visits_db=visits_db))
+    server=WeatherServer((host,port),partial(Handler,db_path=path,ai_dir=ai_dir,lightning_db=lightning_db,translations_db=translations_db,visits_db=visits_db,radar_dir=radar_dir))
     server.response_cache=ResponseCache()
     return server
 
 if __name__=='__main__':
     p=argparse.ArgumentParser(); p.add_argument('--host',default='127.0.0.1'); p.add_argument('--port',type=int,default=8092)
-    p.add_argument('--db',default='data/weather.db'); p.add_argument('--ai-dir',default='data/ai'); p.add_argument('--lightning-db'); p.add_argument('--translations-db'); p.add_argument('--visits-db'); a=p.parse_args()
+    p.add_argument('--db',default='data/weather.db'); p.add_argument('--ai-dir',default='data/ai'); p.add_argument('--lightning-db'); p.add_argument('--translations-db'); p.add_argument('--visits-db'); p.add_argument('--radar-dir'); a=p.parse_args()
     logging.basicConfig(level=logging.INFO)
-    server=make_server(a.host,a.port,a.db,a.ai_dir,a.lightning_db,a.translations_db,a.visits_db)
+    server=make_server(a.host,a.port,a.db,a.ai_dir,a.lightning_db,a.translations_db,a.visits_db,a.radar_dir)
     print(f'Weather API: http://{a.host}:{a.port}',flush=True)
     try: server.serve_forever()
     except KeyboardInterrupt: pass
