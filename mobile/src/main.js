@@ -178,10 +178,8 @@ function render(){
   html+='</div><div class="weather-secondary-row">';
   html+=card('rain',tr("weather.precipitation"),num(s.rain),tr("units.rain"));
   html+=card('rh',tr("weather.humidity"),num(s.rh,0),'%','');
-  // The model's nearest offshore point, with CyDoM's whole-degree bulletin value as the official one.
-  const official=state.marine?.forecast?.sst,model=state.sea?.current?.sst;
-  const seaNote=model!=null?tr('weather.seaModel',{km:num(state.sea.km,0)})+(official!=null?' · '+tr('weather.seaOfficial',{value:num(official,0)}):''):official!=null?tr('weather.seaBulletin'):'';
-  html+=card('sst',tr("weather.sea"),num(model??official),'°C',seaNote);html+='</div></div>';
+  // The model's nearest offshore point; CyDoM's whole-degree bulletin when the model is missing.
+  html+=card('sst',tr("weather.sea"),num(state.sea?.current?.sst??state.marine?.forecast?.sst),'°C');html+='</div></div>';
  }else if(state.tab==='sun'){
   const t=sunTimes(now(),st.lat,st.lon);const u=latest(state.uv,'uv',current);
   const r=latest(state.obs,'radiation_observed',current,7200),peak=todayUvMaximum(state.uv,now());
@@ -477,7 +475,9 @@ function drawChart(key){
  }else if(key==='sst'){
   from=t-7*24*HOUR;to=t;
   const official=line(tr("chart.seaOfficial"),points(state.marine?.sst,'sst',from,to,0,86400),false,0,false,'#c4683f');official.step='middle';
-  series=[line(tr("chart.seaModel"),points(state.sea,'sst',from,to)),official];note=tr("chart.seaHelp");
+  series=[line(tr("chart.seaModel"),points(state.sea,'sst',from,to)),official];
+  const officialNow=state.marine?.forecast?.sst;
+  note=[state.sea?.km!=null?tr('chart.seaPoint',{km:num(state.sea.km,0)}):'',officialNow!=null?tr('chart.seaOfficialNow',{value:num(officialNow,0)}):'',tr("chart.seaHelp")].filter(Boolean).join(' ');
  }else if(key==='radiation'){
   axes=[{type:'value',name:tr("units.radiation"),min:0},{type:'value',name:'UV',min:0}];
   series=[line(tr("chart.radiationObserved"),points(state.obs,'radiation_observed',from,t)),line(tr("chart.radiationModel"),points(state.model,'rad_global',t,to,-1800),true),line(tr("chart.uvCams"),points(state.uv,'uv',from,cut),false,1,false,'#a383b3'),line(tr("chart.uvForecast"),points(state.uv,'uv',t,to),true,1,false,'#a383b3')];
