@@ -32,7 +32,7 @@ const time=t=>t==null?'—':new Date(t).toLocaleTimeString(locale(),{timeZone:'A
 const date=t=>t==null?'—':new Date(t).toLocaleString(locale(),{timeZone:'Asia/Nicosia',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 const base=(import.meta.env.VITE_API_BASE||'').replace(/\/$/,'');
 let metrics;function localizedMetrics(){metrics={temp:[tr("weather.temperature"),'°C'],utci_shade:[tr("weather.shadeUtci"),'°C'],utci_sun:[tr("weather.sunUtci"),'°C'],net:['NET','°C'],wind10:[tr("weather.wind"),tr("units.wind")],rh:[tr("weather.humidity"),'%'],rain:[tr("weather.precipitation"),tr("units.rain")],p_station:[tr("weather.pressure"),tr("units.pressure")],sst:[tr("weather.seaTemperature"),'°C'],sun:[tr("sun.elevation"),'°'],radiation:[tr("sun.radiationChart"),''],pm25:['PM2.5',tr("units.pollution")],pm10:['PM10',tr("units.pollution")],no2:['NO₂',tr("units.pollution")],o3:['O₃',tr("units.pollution")],so2:['SO₂',tr("units.pollution")],co:['CO',tr("units.pollution")],dust:[tr("air.dust"),tr("units.pollution")],eaqi:['EAQI','']};}localizedMetrics();
-const state={stations:[],station:localStorage.getItem('station')||'',tab:'weather',snapshot:null,obs:null,model:null,uv:null,air:null,marine:null,forecast:null,ai:null,health:null,errors:[],generation:0,location:null,elevation:null};
+const state={stations:[],station:localStorage.getItem('station')||'',tab:'weather',snapshot:null,obs:null,model:null,uv:null,air:null,marine:null,sea:null,forecast:null,ai:null,health:null,errors:[],generation:0,location:null,elevation:null};
 // Elevation is no longer entered by hand; drop the value older builds stored.
 localStorage.removeItem('altitude');
 let positionRequest=null,locationMarker=null,shellEvents=false,languageGeneration=0;
@@ -178,8 +178,10 @@ function render(){
   html+='</div><div class="weather-secondary-row">';
   html+=card('rain',tr("weather.precipitation"),num(s.rain),tr("units.rain"));
   html+=card('rh',tr("weather.humidity"),num(s.rh,0),'%','');
-  const sea=state.marine?.forecast;
-  html+=card('sst',tr("weather.sea"),num(sea?.sst),'°C');html+='</div></div>';
+  // The model's nearest offshore point, with CyDoM's whole-degree bulletin value as the official one.
+  const official=state.marine?.forecast?.sst,model=state.sea?.current?.sst;
+  const seaNote=model!=null?tr('weather.seaModel',{km:num(state.sea.km,0)})+(official!=null?' · '+tr('weather.seaOfficial',{value:num(official,0)}):''):official!=null?tr('weather.seaBulletin'):'';
+  html+=card('sst',tr("weather.sea"),num(model??official),'°C',seaNote);html+='</div></div>';
  }else if(state.tab==='sun'){
   const t=sunTimes(now(),st.lat,st.lon);const u=latest(state.uv,'uv',current);
   const r=latest(state.obs,'radiation_observed',current,7200),peak=todayUvMaximum(state.uv,now());
@@ -297,7 +299,8 @@ async function loadStation(){
  const window=rollingWindow(now()),start=Math.floor(window.from/1000),end=Math.floor(window.to/1000),q=`station=${encodeURIComponent(st.code)}&from=${start}&to=${end}`;
  state.errors=[];
  const elevation=state.elevation=userElevation();
- const jobs=[['snapshot','weather/snapshot?station='+encodeURIComponent(st.code)+(elevation!=null?'&altitude='+elevation:'')],['obs','weather/readings?'+q+'&agg=hour'],['model','weather/model?'+q],['uv',`weather/uv?station=${encodeURIComponent(st.code)}&from=${Math.floor(now()/1000)-26*3600}&to=${end}`],['air','weather/air?'+q],['marine','weather/marine'],['forecast','weather/forecast'],['ai','weather/ai-forecast'],['health','health']];
+ const hour=Math.floor(now()/3600000)*3600;
+ const jobs=[['snapshot','weather/snapshot?station='+encodeURIComponent(st.code)+(elevation!=null?'&altitude='+elevation:'')],['obs','weather/readings?'+q+'&agg=hour'],['model','weather/model?'+q],['uv',`weather/uv?station=${encodeURIComponent(st.code)}&from=${Math.floor(now()/1000)-26*3600}&to=${end}`],['air','weather/air?'+q],['marine','weather/marine'],['sea',`weather/sea?station=${encodeURIComponent(st.code)}&from=${hour-7*86400-3600}&to=${hour+3600}`],['forecast','weather/forecast'],['ai','weather/ai-forecast'],['health','health']];
  const results=await Promise.allSettled(jobs.map(([,url])=>api(url)));
  if(gen!==state.generation)return;
  results.forEach((r,i)=>{const key=jobs[i][0];if(r.status==='fulfilled')state[key]=r.value;else{state[key]=null;state.errors.push(tr('error.network'));}});
@@ -472,7 +475,9 @@ function drawChart(key){
   series[0].markLine={symbol:'none',silent:true,data:[[0,tr("sun.horizon")],[-6,tr("sun.civilTwilightLine")],[-12,tr("sun.nauticalTwilightLine")],[-18,tr("sun.astronomicalTwilightLine")]].map(([height,label])=>({yAxis:height,name:label,lineStyle:{color:height===0?'#5e7180':'#a9b4bc',type:'dashed'},label:{formatter:label,position:'insideStartTop',fontSize:9,lineHeight:10,color:dark?'#b3c3cf':'#4f6474',backgroundColor:dark?'#14232e':'#fcfbf8'}}))};
   note='';
  }else if(key==='sst'){
-  from=t-7*24*HOUR;to=t;series=[line(tr("chart.seaSeries"),points(state.marine?.sst,'sst',from,to,0,86400))];note=tr("chart.seaHelp");
+  from=t-7*24*HOUR;to=t;
+  const official=line(tr("chart.seaOfficial"),points(state.marine?.sst,'sst',from,to,0,86400),false,0,false,'#c4683f');official.step='middle';
+  series=[line(tr("chart.seaModel"),points(state.sea,'sst',from,to)),official];note=tr("chart.seaHelp");
  }else if(key==='radiation'){
   axes=[{type:'value',name:tr("units.radiation"),min:0},{type:'value',name:'UV',min:0}];
   series=[line(tr("chart.radiationObserved"),points(state.obs,'radiation_observed',from,t)),line(tr("chart.radiationModel"),points(state.model,'rad_global',t,to,-1800),true),line(tr("chart.uvCams"),points(state.uv,'uv',from,cut),false,1,false,'#a383b3'),line(tr("chart.uvForecast"),points(state.uv,'uv',t,to),true,1,false,'#a383b3')];

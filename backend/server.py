@@ -10,6 +10,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 from cyprus_weather import weather, uv, air, dom, forecast, agg
 import model
+import sea
 import lightning_readings
 from domain import summary, pressure_source, pressure_at, recent_readings
 from response_cache import ResponseCache
@@ -19,7 +20,7 @@ import conditions
 import radar_store
 
 def initialize(path):
-    for connect in (dom.connect,uv.connect,air.connect,forecast.connect,model.connect):
+    for connect in (dom.connect,uv.connect,air.connect,forecast.connect,model.connect,sea.connect):
         connect(path).close()
 
 class Handler(BaseHTTPRequestHandler):
@@ -53,7 +54,7 @@ class Handler(BaseHTTPRequestHandler):
                        '/api/weather/marine','/api/weather/ai-forecast'}
         range_routes={'/api/weather/lightning','/api/weather/map-history','/api/weather/radar','/api/weather/radar-cells'}
         station_routes={'/api/weather/readings','/api/weather/uv','/api/weather/air',
-                        '/api/weather/snapshot','/api/weather/model'}
+                        '/api/weather/snapshot','/api/weather/model','/api/weather/sea'}
         if u.path not in global_routes|range_routes|station_routes:
             return self.respond({'error':'Not found'},404)
         try:
@@ -142,6 +143,9 @@ class Handler(BaseHTTPRequestHandler):
                 return {'now':now,'summary':summary(d,now),'rad_src':d['rad_src'],'pressure_source':pressure_source(c,station,now),
                         'conditions':conditions.current(c,station,now,self.lightning_db)}
             if path.endswith('/model'):return model.readings(c,station,lo,hi)
+            if path.endswith('/sea'):
+                st=c.execute('SELECT lat, lon FROM stations WHERE code=?',(station,)).fetchone()
+                return sea.readings(c,st[0],st[1],lo,hi,now)
             if path.endswith('/uv'):return uv.readings(c,station,lo,hi)
             if path.endswith('/air'):return air.readings(c,station,lo,hi)
             d=weather.readings(c,station,lo,hi)

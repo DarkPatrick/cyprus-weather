@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 from import_history import TABLES
 from server import initialize
 import model
+import sea
 
 # Every minute: only fresh station observations, the time-critical part.
 FAST_TABLES=('observations',)
@@ -66,7 +67,7 @@ def collect_co(path):
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--source',required=True);p.add_argument('--db',required=True);p.add_argument('--loop',action='store_true');a=p.parse_args()
     logging.basicConfig(level=logging.INFO)
-    last_model=last_full=0
+    last_model=last_full=last_sea=0
     while True:
         full=time.time()-last_full>=FULL_SECONDS
         try:
@@ -85,5 +86,10 @@ if __name__=='__main__':
         except Exception:
             logging.exception('Server sync failed')
             if not a.loop:raise
+        # Sea temperature on its own hourly clock: a marine API failure never holds up the sync.
+        if time.time()-last_sea>=3600:
+            last_sea=time.time()
+            try:sea.collect(a.db);logging.info('Hourly sea temperature model updated')
+            except Exception:logging.exception('Sea temperature collection failed')
         if not a.loop:break
         time.sleep(FAST_SECONDS)
