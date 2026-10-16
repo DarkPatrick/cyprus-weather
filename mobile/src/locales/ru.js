@@ -165,6 +165,8 @@ export default {
   "map.observationTime": "Время наблюдения на карте",
   "map.windHelp": "Стрелки показывают, куда дует ветер; длина зависит от скорости",
   "map.temperatureScale": "Шкала температуры от 0 до 36 градусов",
+  "map.temperatureLegendTitle": "Температура на станциях, °C",
+  "map.radarLegendTitle": "Осадки (радар):",
   "map.allLightning": "Показать все молнии",
   "map.historyUnavailable": "История карты недоступна",
   "map.noHourlyData": "нет данных в этом часе",

@@ -165,6 +165,8 @@ export default {
   "map.observationTime": "Ώρα παρατήρησης στον χάρτη",
   "map.windHelp": "Τα βέλη δείχνουν προς τα πού φυσά ο άνεμος· το μήκος δείχνει την ταχύτητα",
   "map.temperatureScale": "Κλίμακα θερμοκρασίας από 0 έως 36 βαθμούς",
+  "map.temperatureLegendTitle": "Θερμοκρασία σταθμών, °C",
+  "map.radarLegendTitle": "Βροχή (ραντάρ):",
   "map.allLightning": "Εμφάνιση όλων των κεραυνών",
   "map.historyUnavailable": "Το ιστορικό του χάρτη δεν είναι διαθέσιμο",
   "map.noHourlyData": "χωρίς δεδομένα για αυτή την ώρα",

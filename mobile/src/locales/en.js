@@ -165,6 +165,8 @@ export default {
   "map.observationTime": "Map observation time",
   "map.windHelp": "Arrows show where the wind is blowing; length indicates speed",
   "map.temperatureScale": "Temperature scale from 0 to 36 degrees",
+  "map.temperatureLegendTitle": "Station temperature, °C",
+  "map.radarLegendTitle": "Rain (radar):",
   "map.allLightning": "Show all lightning",
   "map.historyUnavailable": "Map history unavailable",
   "map.noHourlyData": "no data for this hour",
