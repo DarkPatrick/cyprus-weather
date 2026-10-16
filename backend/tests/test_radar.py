@@ -127,6 +127,30 @@ def test_deleted_volumes_are_skipped_but_fresh_404s_are_retried(tmp_path):
     assert calls == [old, fresh, fresh]  # the old one is given up after its first 404
 
 
+def test_sweeps_are_kept_reused_for_pairing_and_expire_after_a_week(tmp_path):
+    lca, pfo = 'LONGRANGE_LCA_20261015085950_00.h5', 'LONGRANGE_PFO_20261015090228_00.h5'
+    names = {lca: volume(*LCA, cell=(10, 30, 35)), pfo: volume(34.81, 32.43, cell=(180, 30, 45))}
+    html = ' '.join(f'<a href="/uploads/radars/{n}">{n}</a>' for n in names)
+    opened = []
+
+    def opener(url):
+        opened.append(url.rsplit('/', 1)[-1])
+        return names[opened[-1]]
+
+    now = radar.file_time(pfo) + 600
+    radar.collect(str(tmp_path), html=html, opener=opener, now=now)
+    assert opened == [lca, pfo]  # each volume downloaded once, the pair came from the saved sweep
+    kept = radar.sweep_path(str(tmp_path), lca)
+    assert kept.name == f'LCA_{radar.file_time(lca)}.npz' and kept.stat().st_size < 200_000
+    names[lca].seek(0)
+    original, again = radar.read_sweep(names[lca]), radar.load_sweep(kept)
+    assert np.allclose(original['dbz'], again['dbz'], atol=0.05, equal_nan=True)
+    assert np.allclose(original['azimuth'], again['azimuth']) and again['lat'] == pytest.approx(LCA[0])
+    week = now + radar.KEEP_SECONDS + 3600
+    radar.collect(str(tmp_path), html='', opener=opener, now=week)
+    assert not list((tmp_path / 'sweeps').glob('*.npz')) and radar_store.frames(str(tmp_path), 0, 2 ** 40)['frames'] == []
+
+
 def test_api_lists_frames_and_serves_images(tmp_path):
     db = str(tmp_path / 'w.db')
     directory = radar_store.default_dir(db)

@@ -16,6 +16,7 @@ import logging
 import math
 import re
 import time
+from pathlib import Path
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
@@ -31,7 +32,7 @@ FILE_NAME = re.compile(r'LONGRANGE_(LCA|PFO)_(\d{14})_00\.h5')
 UA = {'User-Agent': 'cyprus-weather/0.1'}
 WIDTH, HEIGHT = 480, 400          # about 1 km per pixel
 PAIR_SECONDS = 12 * 60            # sweeps of the two radars combined into one frame
-KEEP_SECONDS = 26 * 3600
+KEEP_SECONDS = 7 * 86400          # frames, cell summaries and the sweeps they were built from
 MIN_DBZ = 10                      # weaker echoes are mostly noise and sea clutter
 HEAVY_DBZ = 30                    # about 3 mm/h and more
 MAX_RAY_GAP = 1.5                 # degrees between a pixel and the nearest ray
@@ -209,6 +210,43 @@ def render(dbz):
     return out.getvalue()
 
 
+def sweep_path(directory, name):
+    """Where the lowest sweep of a raw volume is kept: sweeps/<SITE>_<epoch>.npz."""
+    site = FILE_NAME.fullmatch(name).group(1)
+    return Path(directory) / 'sweeps' / f'{site}_{file_time(name)}.npz'
+
+
+def save_sweep(path, sweep):
+    """dBZ in tenths as int16 (-32768 = no data), compressed: about 100 KB a sweep."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    dbz10 = np.where(np.isnan(sweep['dbz']), -32768, np.round(sweep['dbz'] * 10)).astype(np.int16)
+    tmp = path.with_suffix('.tmp.npz')
+    np.savez_compressed(tmp, dbz10=dbz10, azimuth=sweep['azimuth'].astype(np.float32),
+                        site=np.array([sweep['lat'], sweep['lon'], sweep['range_step']]))
+    tmp.replace(path)
+
+
+def load_sweep(path):
+    with np.load(path) as data:
+        lat, lon, step = (float(x) for x in data['site'])
+        dbz = data['dbz10'].astype(np.float32) / 10
+        dbz[data['dbz10'] == -32768] = np.nan
+        return {'lat': lat, 'lon': lon, 'azimuth': data['azimuth'].astype(np.float64), 'range_step': step, 'dbz': dbz}
+
+
+def sweep_of(directory, name, opener):
+    """The lowest sweep of a volume: from the local copy if there is one, else downloaded and kept."""
+    path = sweep_path(directory, name)
+    if path.is_file():
+        try:
+            return load_sweep(path)
+        except (OSError, ValueError, KeyError):
+            logging.warning('Saved sweep %s unreadable, reading the volume again', path.name)
+    sweep = read_sweep(opener(FILE_URL + name))
+    save_sweep(path, sweep)
+    return sweep
+
+
 def collect(directory, html=None, opener=RangeFile, now=None):
     """Turn every new raw volume into a frame; returns the number of new frames."""
     now = int(time.time()) if now is None else now
@@ -223,7 +261,7 @@ def collect(directory, html=None, opener=RangeFile, now=None):
         latest = {}  # site -> (ts, sweep) of the newest sweep read in this run
         for ts, site, name in pending:
             try:
-                sweep = read_sweep(opener(FILE_URL + name))
+                sweep = sweep_of(directory, name, opener)
             except HTTPError as error:
                 # The page keeps listing volumes the server has already deleted: give up on those
                 # once they are old enough that a 404 cannot be an upload still in progress.
@@ -246,7 +284,7 @@ def collect(directory, html=None, opener=RangeFile, now=None):
                 candidates = [n for n in names if abs(file_time(n) - ts) <= PAIR_SECONDS and file_time(n) <= ts]
                 if candidates:
                     try:
-                        latest[other] = (file_time(candidates[-1]), read_sweep(opener(FILE_URL + candidates[-1])))
+                        latest[other] = (file_time(candidates[-1]), sweep_of(directory, candidates[-1], opener))
                     except HTTPError as error:
                         logging.warning('Radar file %s not read: %s', candidates[-1], error)
                     except Exception:
@@ -267,6 +305,10 @@ def collect(directory, html=None, opener=RangeFile, now=None):
         with conn:
             conn.execute('DELETE FROM radar_frames WHERE ts < ?', (old,))
             conn.execute('DELETE FROM radar_files WHERE ts < ?', (old - 86400,))
+        for path in (Path(directory) / 'sweeps').glob('*.npz'):
+            stamp = path.stem.rpartition('_')[2]
+            if not stamp.isdigit() or int(stamp) < old:
+                path.unlink(missing_ok=True)
     finally:
         conn.close()
     return made
