@@ -19,7 +19,7 @@ import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, Ma
 import { CanvasRenderer } from 'echarts/renderers';
 echarts.use([LineChart,BarChart,ScatterChart,GridComponent,TooltipComponent,LegendComponent,DataZoomComponent,MarkLineComponent,MarkAreaComponent,CanvasRenderer]);
 import L from 'leaflet';
-import { Capacitor } from '@capacitor/core';
+import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { App } from '@capacitor/app';
 import { sunPosition,sunTimes,sunWindow,sunPhase,HOUR } from './sun.js';
@@ -91,6 +91,9 @@ function applyTheme(){
  $('theme').setAttribute('aria-label',dark?tr("theme.light"):tr("theme.dark"));
  $('theme').setAttribute('aria-pressed',String(dark));
  document.querySelector('meta[name="theme-color"]').content=dark?'#0f1c26':'#f7f4ee';
+ // Status and navigation bar icons follow the app's theme, not the system's (Capacitor's default):
+ // DARK is light icons for the dark theme, LIGHT dark icons for the light one.
+ if(Capacitor.isNativePlatform())SystemBars.setStyle({style:dark?SystemBarsStyle.Dark:SystemBarsStyle.Light}).catch(()=>{});
 }
 function fillShell(){
  $('app').innerHTML=`<main class="shell"><header><div><div class="eyebrow">${tr("brand.subtitle")}</div><h1>${tr("brand.name")}</h1></div><div class="header-actions"><button class="brandmark language-toggle" id="language" type="button" aria-label="${tr("language.select")}"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18M5 7h14M5 17h14"/></svg></button><button class="brandmark" id="theme" type="button" aria-label="${tr("theme.dark")}" aria-pressed="false"><span aria-hidden="true">☀</span></button></div></header>
