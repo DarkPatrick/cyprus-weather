@@ -19,3 +19,9 @@ test('failed requests are throttled briefly, then retried',async()=>{
  at=FAILURE_TTL;await assert.rejects(load('weather/forecast'));assert.equal(calls,2);
  assert.ok(FAILURE_TTL<DATA_TTL);
 });
+test('clear sends the next request of every path to the network',async()=>{
+ let calls=0;
+ const load=cachedLoader(async()=>++calls,{clock:()=>0});
+ await load('weather/forecast');await load('weather/forecast');assert.equal(calls,1);
+ load.clear();await load('weather/forecast');assert.equal(calls,2);
+});

@@ -11,7 +11,7 @@ export function weatherCacheKey(path){
 }
 export function cachedLoader(fetcher,{ttl=DATA_TTL,failureTtl=FAILURE_TTL,clock=Date.now,key=weatherCacheKey}={}){
  const entries=new Map();
- return path=>{
+ const load=path=>{
   const cacheKey=key(path),at=clock(),entry=entries.get(cacheKey);
   if(entry&&at<entry.expires)return entry.promise;
   const promise=Promise.resolve().then(()=>fetcher(path));
@@ -20,4 +20,7 @@ export function cachedLoader(fetcher,{ttl=DATA_TTL,failureTtl=FAILURE_TTL,clock=
   promise.catch(()=>{created.expires=Math.min(created.expires,at+failureTtl);});
   return promise;
  };
+ // A manual refresh: the next request of every path goes to the network.
+ load.clear=()=>entries.clear();
+ return load;
 }

@@ -109,7 +109,7 @@ function fillShell(){
  $('languageclose').onclick=()=>$('languagedetail').close();
  $('languagedetail').onclick=e=>{const option=e.target.closest('[data-language]');if(option)changeLanguage(option.dataset.language);else if(e.target===$('languagedetail'))$('languagedetail').close();};
  $('theme').onclick=()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';localStorage.setItem('theme',theme);document.documentElement.dataset.theme=theme;applyTheme();if(chartKey&&$('detail').open)drawChart(chartKey);};
- $('station').onchange=e=>selectStation(e.target.value);$('refresh').onclick=refresh;$('locate').onclick=locate;
+ $('station').onchange=e=>selectStation(e.target.value);$('refresh').onclick=manualRefresh;$('locate').onclick=locate;
  $('mapwrap').addEventListener('toggle',()=>{if($('mapwrap').open)openMap();else stopMap();});
  $('timeline').oninput=()=>{stopMap();drawMap();};
  $('mapshowbolts').onclick=()=>{if(activeBolts.length)map.fitBounds(activeBolts.map(i=>[bolts.lat[i],bolts.lon[i]]).concat(state.stations.map(st=>[st.lat,st.lon])),{padding:[20,20]});};
@@ -240,8 +240,8 @@ function renderRadar(){
  const labels={RADAR_Static:'radar.both',RADAR_PFO_MAX_Static:'radar.paphos',RADAR_LCA_MAX_Static:'radar.larnaca'};
  const label=image=>tr(labels[image.replace('.png','')]);
  html+=`<div class="radar-tabs" role="tablist">${RADAR_IMAGES.map(image=>`<button type="button" data-radar="${image}" role="tab" aria-selected="${image===radarImage}" ${fresh(image)?'':'disabled'}>${label(image)}</button>`).join('')}</div>`;
- // The browser cache is busted once per 5 minutes.
- html+=`<button class="forecast-image-link forecast-image radar-image" data-image aria-label="${tr("radar.open")}"><img draggable="false" src="https://www.dom.org.cy/RADAR_IMG/${radarImage}?t=${Math.floor(now()/300000)}" alt="${esc(tr("radar.title")+' · '+label(radarImage))}"></button>`;
+ // The browser cache is busted once per 5 minutes, and by the ↻ button.
+ html+=`<button class="forecast-image-link forecast-image radar-image" data-image aria-label="${tr("radar.open")}"><img draggable="false" src="https://www.dom.org.cy/RADAR_IMG/${radarImage}?t=${Math.floor(now()/300000)}${radarBust?'.'+radarBust:''}" alt="${esc(tr("radar.title")+' · '+label(radarImage))}"></button>`;
  return html+`<p class="muted radar-note">${tr("radar.legend")}</p>`;
 }
 function renderClimate(doc){if(!doc)return tr("forecast.documentPending");return `<p class="muted">${esc(climatePeriod(doc.period))}</p><p>${esc(doc.title)}</p>${doc.summary?`<p>${esc(contentText(doc.summary))}</p>`:''}${Object.entries(doc.sections||{}).map(([k,v])=>`<p><b>${esc(tr("climate."+k))}</b><br>${esc(contentText(v))}</p>`).join('')}${doc.rain_mm!=null?`<p>${tr("forecast.rainNormal",{mm:num(doc.rain_mm),percent:num(doc.rain_pct)})}</p>`:''}${doc.url?`<a href="${esc(doc.url)}" target="_blank" rel="noreferrer">${tr("forecast.originalPdf")}</a>`:''}`;}
@@ -267,7 +267,9 @@ function renderAI(doc){
  }
  return html;
 }
-let refreshing=null,lastRefresh=0;
+let refreshing=null,lastRefresh=0,radarBust=0;
+// The ↻ button: past the 5-minute cache, and the radar picture reloaded too.
+function manualRefresh(){if(refreshing)return refreshing;loadAPI.clear();radarBust=now();return refresh();}
 function refresh(){
  // One refresh at a time: the button, the timer and app resume can coincide.
  if(!refreshing)refreshing=refreshNow().finally(()=>{refreshing=null;});
