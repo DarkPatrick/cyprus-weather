@@ -9,7 +9,7 @@
 
 button.card{-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none;appearance:none}button.card:active{filter:none}body:has(dialog[open]) button.card{outline:none}
 .player{display:flex;gap:12px;align-items:center}.player button{flex:none;width:36px;height:36px;border:1px solid var(--border);border-radius:10px;background:var(--control);color:var(--accent)}.player input{flex:1;min-width:0}.mapoptions{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:8px;font-size:12px;color:var(--muted)}.mapoptions label{display:flex;gap:6px;align-items:center;white-space:nowrap}.mapoptions input{width:auto;accent-color:var(--accent)}.maplegend{display:flex;justify-content:space-between;margin-top:12px;padding-top:7px;border-top:6px solid transparent;border-image:linear-gradient(to right,rgb(59,111,212) 0%,rgb(47,163,168) 33%,rgb(224,161,42) 55%,rgb(224,102,45) 78%,rgb(194,45,45) 100%) 1;font-size:10px;color:var(--muted)}
-.station-marker{background:none;border:0}.stationdot{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;border:1.5px solid white;border-radius:50%;box-shadow:0 1px 3px #1236;line-height:1;display:grid;place-items:center;font-size:10px;font-weight:650;white-space:nowrap;pointer-events:none}.stationdot.temperature{width:34px;height:24px;border-radius:12px}.stationdot.selected{box-shadow:0 0 0 2px var(--text),0 1px 4px #1236}.mapwind{position:absolute;left:50%;top:50%;pointer-events:none;overflow:visible}
+.station-marker{background:none;border:0}.stationdot{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:10px;height:10px;border:1.5px solid white;border-radius:50%;box-shadow:0 1px 3px #1236;line-height:1;display:grid;place-items:center;font-size:10px;font-weight:650;white-space:nowrap;pointer-events:none}.stationdot.cluster{width:22px;height:22px;font-size:11px}.stationdot.temperature{width:34px;height:24px;border-radius:12px}.stationdot.selected{box-shadow:0 0 0 2px var(--text),0 1px 4px #1236}.mapwind{position:absolute;left:50%;top:50%;pointer-events:none;overflow:visible}
 
 .air-sources{margin:18px 2px 0}
 
@@ -435,3 +435,7 @@ header>div:first-child{min-width:0}.eyebrow{letter-spacing:1.5px}
 .radar-legend{display:flex;flex-wrap:wrap;gap:4px 12px;margin:8px 0 0;font-size:11px;color:var(--muted)}
 .radar-legend[hidden]{display:none}
 .radar-legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+
+/* OpenStreetMap tiles follow the dark theme: inverted lightness, hues turned back. */
+[data-theme=dark] .leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.92) contrast(.9) saturate(.8)}
+.map-reset{display:grid!important;place-items:center}

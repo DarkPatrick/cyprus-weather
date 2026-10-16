@@ -374,6 +374,8 @@ export default {
   "error.network": "Σφάλμα σύνδεσης. Ελέγξτε την πρόσβαση στο διαδίκτυο.",
   "map.zoomIn": "Μεγέθυνση",
   "map.zoomOut": "Σμίκρυνση",
+  "map.resetView": "Εμφάνιση όλων των σταθμών",
+  "map.cluster": "{count} σταθμοί",
   "language.close": "Κλείσιμο επιλογής γλώσσας",
   "station.ACHNA": "Άχνα",
   "station.AGROS": "Αγρός",

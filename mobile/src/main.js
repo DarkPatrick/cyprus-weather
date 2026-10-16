@@ -12,7 +12,7 @@ import {windStrength,pressureIndicator,uvLevel,todayUvMaximum} from './weather-l
 import {airLevel,airClass} from './air-level.js';
 import {boltMarker} from './bolt-layer.js';
 import {forecastInterval,probabilityValue,orderedBulletins,bulletinAge,forecastIsCurrent,relativeForecastRange} from './forecast-format.js';
-import {tempColor,labelFits,windArrow,rainLevel,flashIndices} from './map-style.js';
+import {tempColor,labelFits,windArrow,rainLevel,flashIndices,clusterPoints} from './map-style.js';
 import * as echarts from 'echarts/core';
 import { LineChart, BarChart, ScatterChart } from 'echarts/charts';
 import { GridComponent, TooltipComponent, LegendComponent, DataZoomComponent, MarkLineComponent, MarkAreaComponent } from 'echarts/components';
@@ -373,7 +373,7 @@ async function start(){
  if(p){try{await applyPosition(p);}catch{/* The default or manually selected station stays available. */}}
 }
 async function openMap(){
- if(!map){map=L.map('map',{zoomControl:false}).setView([35.05,33.1],8);L.control.zoom({zoomInTitle:tr('map.zoomIn'),zoomOutTitle:tr('map.zoomOut')}).addTo(map);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',maxZoom:18}).addTo(map);map.createPane('radar').style.zIndex=350;radarOverlay=null;layer=L.layerGroup().addTo(map);boltLayer=L.layerGroup().addTo(map);boltCanvas=L.canvas({padding:.2}); if(state.stations.length)map.fitBounds(state.stations.map(s=>[s.lat,s.lon]),{padding:[25,25],maxZoom:8});}
+ if(!map){map=L.map('map',{zoomControl:false}).setView([35.05,33.1],8);L.control.zoom({zoomInTitle:tr('map.zoomIn'),zoomOutTitle:tr('map.zoomOut')}).addTo(map);new ResetView().addTo(map);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',maxZoom:18}).addTo(map);map.createPane('radar').style.zIndex=350;radarOverlay=null;layer=L.layerGroup().addTo(map);boltLayer=L.layerGroup().addTo(map);boltCanvas=L.canvas({padding:.2}); fitStations();}
  showLocation();
  map.off('zoomend moveend',drawMap);map.on('zoomend moveend',drawMap);
  requestAnimationFrame(()=>map.invalidateSize());drawMap();
@@ -391,6 +391,17 @@ async function loadMapData(){
  if(radar.status==='fulfilled')radarFrames=radar.value;
  return hist.status==='fulfilled';
 }
+// The default view: every station in sight.
+function fitStations(){if(state.stations.length)map.fitBounds(state.stations.map(s=>[s.lat,s.lon]),{padding:[25,25],maxZoom:8});else map.setView([35.05,33.1],8);}
+const ResetView=L.Control.extend({options:{position:'topleft'},onAdd(){
+ const bar=L.DomUtil.create('div','leaflet-bar leaflet-control'),a=L.DomUtil.create('a','map-reset',bar);
+ a.href='#';a.setAttribute('role','button');a.title=tr('map.resetView');a.setAttribute('aria-label',tr('map.resetView'));
+ a.innerHTML='<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>';
+ L.DomEvent.disableClickPropagation(bar);
+ L.DomEvent.on(a,'click',e=>{L.DomEvent.preventDefault(e);fitStations();});
+ return bar;
+}});
+const CLUSTER_PX=24;
 function stopMap(){clearInterval(mapTimer);mapTimer=null;$('mapplay').textContent='▶';$('mapplay').setAttribute('aria-label',tr("map.play"));$('mapplay').setAttribute('aria-pressed','false');}
 function drawRadar(at){
  const enabled=$('mapradar').checked,list=radarFrames?.frames||[];
@@ -407,17 +418,35 @@ function drawRadar(at){
  else if(radarOverlay._url!==url)radarOverlay.setUrl(url);
  $('mapradarinfo').textContent=tr('map.radarFrame',{time:time(frame.ts*1000)});
 }
+// Several stations as one marker: their count, coloured by the mean temperature, ringed by the
+// heaviest rain among them; a tap zooms in until they separate.
+function drawCluster(members,readings,rains){
+ const stations=members.map(i=>state.stations[i]),temps=members.map(i=>readings[i]?.temp).filter(t=>t!=null);
+ const mean=temps.length?temps.reduce((a,t)=>a+t,0)/temps.length:null,color=tempColor(mean);
+ const rain=members.map(i=>rains[i]).filter(Boolean).sort((a,b)=>['light','moderate','heavy'].indexOf(b.cls)-['light','moderate','heavy'].indexOf(a.cls))[0];
+ const lat=stations.reduce((a,s)=>a+s.lat,0)/stations.length,lon=stations.reduce((a,s)=>a+s.lon,0)/stations.length;
+ const html=`<div class="stationdot cluster ${rain?'rain '+rain.cls:''}" style="background:${color.bg};color:${color.fg}">${members.length}</div>`;
+ const range=temps.length?` · ${num(Math.min(...temps),0)}…${num(Math.max(...temps),0)} °C`:'';
+ const marker=L.marker([lat,lon],{title:tr('map.cluster',{count:members.length}),icon:L.divIcon({className:'station-marker',html,iconSize:[36,36],iconAnchor:[18,18]})}).addTo(layer);
+ marker.bindTooltip(esc(tr('map.cluster',{count:members.length})+range+(rain?' · '+rain.name:'')));
+ marker.on('click',()=>map.fitBounds(stations.map(s=>[s.lat,s.lon]),{padding:[50,50],maxZoom:Math.min(12,map.getZoom()+3)}));
+}
 function drawMap(){if(!map)return;layer.clearLayers();const offset=(+$('timeline').value-144)/6,at=(offset===0?Math.floor(now()/1000):historyEnd||Math.floor(now()/1000))+offset*3600;$('maptime').textContent=offset===0?tr("common.now"):date(at*1000);drawRadar(at);
- const raining=[];let rainAvailable=false;
+ const raining=[];let rainAvailable=false,zoom=map.getZoom();
+ const readings=state.stations.map(st=>offset===0&&st.latest&&at-st.latest.ts<=3600?st.latest:mapReading(history?.stations?.[st.code],at));
+ const rains=readings.map((d,i)=>{const rain=rainLevel(d?.rain_30m);if(d?.rain_30m!=null)rainAvailable=true;if(rain)raining.push(name(state.stations[i].code));return rain;});
  const positions=state.stations.map(st=>{const p=map.latLngToContainerPoint([st.lat,st.lon]);return {code:st.code,x:p.x,y:p.y};});
- for(let i=0;i<state.stations.length;i++){
-  const st=state.stations[i],d=offset===0&&st.latest&&at-st.latest.ts<=3600?st.latest:mapReading(history?.stations?.[st.code],at);
-  const rain=rainLevel(d?.rain_30m);if(d?.rain_30m!=null)rainAvailable=true;if(rain)raining.push(name(st.code));
-  const label=d?.temp!=null&&labelFits(positions[i],positions,map.getZoom()),color=tempColor(d?.temp);
+ // Nearby stations merge into one marker so a dense area does not turn into a blot.
+ const groups=clusterPoints(positions,CLUSTER_PX,state.station);
+ const shown=groups.map(g=>g.length===1?positions[g[0]]:{code:'cluster'+g[0],x:g.reduce((a,i)=>a+positions[i].x,0)/g.length,y:g.reduce((a,i)=>a+positions[i].y,0)/g.length});
+ groups.forEach((g,k)=>{
+  if(g.length>1){drawCluster(g,readings,rains);return;}
+  const i=g[0],st=state.stations[i],d=readings[i],rain=rains[i];
+  const label=d?.temp!=null&&labelFits(shown[k],shown,zoom),color=tempColor(d?.temp);
   const html=($('mapwind').checked?windArrow(d):'')+`<div class="stationdot ${label?'temperature':''} ${st.code===state.station?'selected':''} ${rain?'rain '+rain.cls:''}" style="background:${color.bg};color:${color.fg}">${label?num(d.temp,0)+'°':''}</div>`;
   const marker=L.marker([st.lat,st.lon],{title:name(st.code),icon:L.divIcon({className:'station-marker',html,iconSize:[36,36],iconAnchor:[18,18]})}).addTo(layer);
   marker.bindTooltip(`${esc(name(st.code))} · ${d?num(d.temp)+' °C · '+time(d.ts*1000):tr("map.noHourlyData")}${d?.wdir!=null?' · '+windDirection(d.wdir)+' '+num(d.wdir,0)+'°':''}${rain?' · '+tr('map.rainTooltip',{level:rain.name,mm:num(d.rain_30m)}):''}`);marker.on('click',()=>selectStation(st.code));
- }
+ });
  $('maprain').textContent=raining.length?tr('map.rainStations',{stations:raining.join(', ')}):rainAvailable?tr("map.noRain"):tr("map.noRainData");
  boltLayer.clearLayers();// The last hour, both now and at any point of the timeline.
  const trail=3600,indices=flashIndices(bolts,at,trail);

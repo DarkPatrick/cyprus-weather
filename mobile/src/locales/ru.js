@@ -374,6 +374,8 @@ export default {
   "error.network": "Ошибка соединения. Проверьте доступ к интернету.",
   "map.zoomIn": "Приблизить",
   "map.zoomOut": "Отдалить",
+  "map.resetView": "Показать все станции",
+  "map.cluster": "Станций: {count}",
   "language.close": "Закрыть выбор языка",
   "station.ACHNA": "Ахна",
   "station.AGROS": "Агрос",

@@ -12,6 +12,20 @@ export function tempColor(t){
 export function labelFits(point,points,zoom){
  return zoom>=10&&!points.some(other=>other.code!==point.code&&Math.abs(other.x-point.x)<40&&Math.abs(other.y-point.y)<30);
 }
+// Stations closer than `radius` px on screen share one marker. Greedy, densest point first;
+// the station `keep` (the selected one) always stays on its own. Returns index groups.
+export function clusterPoints(points,radius,keep){
+ const groups=points.flatMap((p,i)=>p.code===keep?[[i]]:[]);
+ const free=new Set(points.flatMap((p,i)=>p.code===keep?[]:[i]));
+ const near=(a,b)=>Math.hypot(points[a].x-points[b].x,points[a].y-points[b].y)<radius;
+ while(free.size){
+  let seed=null,best=-1;
+  for(const i of free){const n=[...free].filter(j=>near(i,j)).length;if(n>best){best=n;seed=i;}}
+  const members=[...free].filter(j=>near(seed,j));
+  members.forEach(j=>free.delete(j));groups.push(members);
+ }
+ return groups;
+}
 export function windArrow(reading){
  const speed=reading?.wind10??reading?.wind2;
  if(reading?.wdir==null||speed==null||speed<.3)return '';

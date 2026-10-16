@@ -14,3 +14,13 @@ test('wind arrows point downwind and absent wind stays absent',()=>{
  assert.equal(windArrow({wind10:2}), '');assert.equal(windArrow({wdir:90,wind10:0}), '');
  assert(windArrow({wdir:90,wind10:3}).includes('rotate(270deg)'));
 });
+
+test('nearby stations cluster, the selected one stays alone, distant ones stay apart', async () => {
+  const { clusterPoints } = await import('../src/map-style.js');
+  const p = (code, x, y) => ({ code, x, y });
+  const pts = [p('A', 0, 0), p('B', 10, 0), p('C', 0, 10), p('D', 200, 200), p('E', 5, 5)];
+  const groups = clusterPoints(pts, 24, 'E');
+  const codes = groups.map(g => g.map(i => pts[i].code).sort().join(''));
+  assert.deepEqual(codes.sort(), ['ABC', 'D', 'E']);
+  assert.equal(clusterPoints(pts, 1, null).length, 5);
+});

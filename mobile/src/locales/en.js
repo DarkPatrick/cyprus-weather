@@ -374,6 +374,8 @@ export default {
   "error.network": "Connection error. Check your internet access.",
   "map.zoomIn": "Zoom in",
   "map.zoomOut": "Zoom out",
+  "map.resetView": "Show all stations",
+  "map.cluster": "{count} stations",
   "language.close": "Close language selection",
   "station.ACHNA": "Achna",
   "station.AGROS": "Agros",
