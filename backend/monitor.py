@@ -1,7 +1,8 @@
 """Health check for the Kairo backend with ntfy push alerts.
 
 Checks that the API answers and that observations are fresh, both in the app's mirror
-and in the aranet4 source DB (their ages tell a broken sync from a broken collector).
+and in the aranet4 source DB (their ages tell a broken sync from a broken collector), and
+that the AI forecast (made by aranet4's own job, 4 times a day) is not stale.
 One alert when a problem starts, a reminder every REMIND_SECONDS, and a recovery
 message. The ntfy topic comes from NTFY_TOPIC (kept on the server, not in the repo).
 
@@ -20,6 +21,8 @@ from urllib.request import Request, urlopen
 
 STALE_SECONDS = 3600  # the app stops showing current values after one hour
 REMIND_SECONDS = 6 * 3600
+# AI forecast runs at 05:40, 11:40, 16:40 and 22:40 Cyprus time: the longest normal gap is 7 h.
+AI_STALE_SECONDS = 8 * 3600
 
 
 def newest_observation(path):
@@ -30,6 +33,14 @@ def newest_observation(path):
         conn.close()
 
 
+def ai_issued(directory):
+    """Issue time of the latest AI forecast; None when there is none or it is unreadable."""
+    try:
+        return int(json.loads((Path(directory) / 'latest.json').read_text())['issued'])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+
+
 def api_ok(url):
     try:
         with urlopen(url, timeout=20) as response:
@@ -38,8 +49,8 @@ def api_ok(url):
         return False
 
 
-def problems(now, mirror_ts, source_ts, api_up):
-    """Human-readable problems, empty when healthy."""
+def problems(now, mirror_ts, source_ts, api_up, ai_ts=...):
+    """Human-readable problems, empty when healthy (ai_ts left out: the AI forecast is not checked)."""
     age = lambda ts: 'no data' if ts is None else f'{(now - ts) // 60} min old'
     found = []
     if not api_up:
@@ -48,6 +59,9 @@ def problems(now, mirror_ts, source_ts, api_up):
         where = ('sync from aranet4 is broken' if source_ts is not None and now - source_ts <= STALE_SECONDS
                  else 'the aranet4 collector is not updating either')
         found.append(f'App data {age(mirror_ts)}, source {age(source_ts)}: {where}')
+    if ai_ts is not ... and (ai_ts is None or now - ai_ts > AI_STALE_SECONDS):
+        found.append('AI forecast missing' if ai_ts is None else
+                     f'AI forecast {(now - ai_ts) // 3600} h old: aranet-ai-forecast runs are failing')
     return found
 
 
@@ -87,6 +101,7 @@ def main():
     parser.add_argument('--db', required=True, help="the app's mirror DB")
     parser.add_argument('--source', help='aranet4 source DB (for diagnosis)')
     parser.add_argument('--api', default='http://127.0.0.1:8092/api/health')
+    parser.add_argument('--ai-dir', help="the AI forecast directory (latest.json); checked when given")
     parser.add_argument('--state', required=True)
     parser.add_argument('--dry-run', action='store_true', help='print instead of sending')
     args = parser.parse_args()
@@ -101,7 +116,8 @@ def main():
         source_ts = read(args.source)
     except sqlite3.Error:
         source_ts = None
-    found = problems(now, mirror_ts, source_ts, api_ok(args.api))
+    found = problems(now, mirror_ts, source_ts, api_ok(args.api),
+                     *([ai_issued(args.ai_dir)] if args.ai_dir else []))
     state_path = Path(args.state)
     state = json.loads(state_path.read_text()) if state_path.is_file() else {}
     message, state = decide(state, found, now)

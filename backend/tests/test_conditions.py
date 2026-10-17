@@ -1,3 +1,4 @@
+import time
 import json
 
 import conditions
@@ -35,7 +36,8 @@ def _station(tmp_path):
 
 def test_current_uses_measured_radiation_in_daylight(tmp_path):
     c = _station(tmp_path)
-    now = 1791633600  # 2026-10-10 12:00 UTC, sun high over Cyprus
+    # Yesterday 10:00 UTC (sun high): radiation sensors are looked up over the last 7 days of wall time.
+    now = int(time.time()) // 86400 * 86400 - 86400 + 10 * 3600
     assert thermal.sun_elevation(now, 34.7, 33.0) > conditions.MIN_ELEVATION
     clear = conditions.clear_sky_ghi(thermal.sun_elevation(now, 34.7, 33.0))
     with c:
