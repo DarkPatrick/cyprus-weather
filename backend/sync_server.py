@@ -19,6 +19,12 @@ FAST_SECONDS=60
 # (same timestamp, new values), so they cannot be picked up by "new rows only".
 FULL_WINDOW=8*86400
 FULL_SECONDS=300
+# Values no Cyprus station can measure. A failed logger reports -40 °C with 0 % humidity (PENTAKOMO
+# from 2026-10-17) and its 10 m wind channel reads 0 too; such rows become "no data" in the mirror.
+SENTINEL_TEMP=-39.5
+CLEAN_OBSERVATIONS=(f'UPDATE observations SET temp=NULL, rh=NULL, wind10=NULL WHERE temp<={SENTINEL_TEMP} AND ts>=?',
+                    'UPDATE observations SET temp=NULL WHERE temp>55 AND ts>=?',
+                    'UPDATE observations SET rh=NULL WHERE rh<=0 AND ts>=?')
 
 
 def sync(source,target,tables=TABLES,window=FULL_WINDOW):
@@ -38,6 +44,8 @@ def sync(source,target,tables=TABLES,window=FULL_WINDOW):
                 if 'ts' in cols:query+=' WHERE ts>='+str(int(time.time())-window)
                 updates=','.join(f'"{k}"=excluded."{k}"' for k in cols)
                 dest.executemany(f'INSERT INTO "{table}" ({names}) VALUES ({",".join("?" for _ in cols)}) ON CONFLICT DO UPDATE SET {updates}',src.execute(query))
+                if table=='observations':
+                    for sql in CLEAN_OBSERVATIONS:dest.execute(sql,(int(time.time())-window,))
             at=int(time.time())
             if tuple(tables)!=tuple(TABLES):return
             dest.execute('INSERT INTO collection_status VALUES(?,?,?,NULL) ON CONFLICT(source) DO UPDATE SET attempted=excluded.attempted,succeeded=excluded.succeeded,error=NULL',('existing_server',at,at))

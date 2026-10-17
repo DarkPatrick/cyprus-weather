@@ -38,3 +38,20 @@ def test_fast_sync_copies_only_recent_observations(tmp_path):
     assert d.execute('SELECT COUNT(*) FROM stations').fetchone()[0]==0
     assert d.execute("SELECT COUNT(*) FROM collection_status WHERE source='existing_server'").fetchone()[0]==0
     d.close()
+
+
+def test_impossible_values_from_a_failed_sensor_are_not_mirrored(tmp_path):
+    import time
+    source=str(tmp_path/'source.db');target=str(tmp_path/'target.db')
+    initialize(source)
+    now=int(time.time())
+    s=sqlite3.connect(source)
+    s.execute('INSERT INTO stations(code,lat,lon) VALUES(?,?,?)',('A',35,33))
+    s.executemany('INSERT INTO observations(station,ts,temp,rh,wind10,wind2) VALUES(?,?,?,?,?,?)',
+                  [('A',now-1200,21.5,60,3.0,2.0),('A',now-600,-40.0,0.0,0.0,7.2),('A',now-300,58.0,40,1.0,1.0)])
+    s.commit();s.close()
+    sync(source,target)
+    d=sqlite3.connect(target)
+    rows=d.execute('SELECT temp,rh,wind10,wind2 FROM observations ORDER BY ts').fetchall()
+    assert rows==[(21.5,60,3.0,2.0),(None,None,None,7.2),(None,40,1.0,1.0)]
+    d.close()
