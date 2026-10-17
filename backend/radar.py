@@ -38,6 +38,12 @@ HEAVY_DBZ = 30                    # about 3 mm/h and more
 MAX_RAY_GAP = 1.5                 # degrees between a pixel and the nearest ray
 LOOP_SECONDS = 180
 GONE_SECONDS = 20 * 60           # a listed volume answering 404 for longer than this is deleted
+# Static clutter map: a spot with echo in at least CLUTTER_SHARE of a radar's sweeps over the
+# last CLUTTER_SECONDS is ground or sea clutter (rain does not sit in one place for days).
+CLUTTER_SECONDS = 2 * 86400
+CLUTTER_SHARE = 0.8
+CLUTTER_MIN_SWEEPS = 60
+CLUTTER_REFRESH = 3600
 # dBZ lower bound -> colour, the usual rain-radar scale (drizzle blue to hail magenta).
 COLOURS = [(10, (140, 200, 255)), (15, (80, 160, 240)), (20, (30, 110, 220)), (25, (20, 70, 190)), (30, (40, 180, 70)),
            (35, (20, 135, 45)), (40, (245, 215, 30)), (45, (250, 150, 20)), (50, (230, 45, 30)),
@@ -247,13 +253,122 @@ def sweep_of(directory, name, opener):
     return sweep
 
 
+def ray_bins(azimuth):
+    """Whole-degree bin of every ray: sweeps start at different azimuths."""
+    return np.floor(np.asarray(azimuth, dtype=np.float64) + 1e-6).astype(np.int64) % 360
+
+
+def sweep_stamps(directory, site):
+    """{epoch: path} of the saved sweeps of one radar."""
+    out = {}
+    for path in (Path(directory) / 'sweeps').glob(f'{site}_*.npz'):
+        stamp = path.stem.rpartition('_')[2]
+        if stamp.isdigit():
+            out[int(stamp)] = path
+    return out
+
+
+def build_clutter(directory, site, now):
+    """[360, gates] bool: where this radar sees echo in at least CLUTTER_SHARE of its recent sweeps."""
+    paths = [p for t, p in sweep_stamps(directory, site).items() if now - CLUTTER_SECONDS <= t <= now]
+    if len(paths) < CLUTTER_MIN_SWEEPS:
+        return None
+    hits = counts = None
+    for path in paths:
+        try:
+            sweep = load_sweep(path)
+        except (OSError, ValueError, KeyError):
+            continue
+        with np.errstate(invalid='ignore'):
+            echo = sweep['dbz'] >= MIN_DBZ
+        if hits is None:
+            hits, counts = np.zeros((360, echo.shape[1])), np.zeros(360)
+        if echo.shape[1] != hits.shape[1]:
+            continue
+        bins = ray_bins(sweep['azimuth'])
+        np.add.at(hits, bins, echo)
+        np.add.at(counts, bins, 1)
+    if hits is None:
+        return None
+    mask = hits / np.maximum(counts, 1)[:, None] >= CLUTTER_SHARE
+    # One bin wider in azimuth: ray centres fall on either side of a bin edge from sweep to sweep.
+    return mask | np.roll(mask, 1, axis=0) | np.roll(mask, -1, axis=0)
+
+
+def clutter_mask(directory, site, now, cache=None):
+    """The radar's clutter map, rebuilt from the saved sweeps at most once per CLUTTER_REFRESH."""
+    if cache is not None and site in cache:
+        return cache[site]
+    path = Path(directory) / 'clutter' / f'{site}.npz'
+    mask = None
+    try:
+        with np.load(path) as data:
+            if now - int(data['built']) < CLUTTER_REFRESH:
+                mask = data['mask'] if data['mask'].ndim == 2 else None
+            else:
+                raise ValueError('stale')
+    except (OSError, ValueError, KeyError):
+        mask = build_clutter(directory, site, now)
+        if mask is not None:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix('.tmp.npz')
+            np.savez_compressed(tmp, mask=mask, built=np.array(now))
+            tmp.replace(path)
+            logging.info('Radar %s clutter map: %d gates', site, int(mask.sum()))
+    if cache is not None:
+        cache[site] = mask
+    return mask
+
+
+def declutter(sweep, mask):
+    """The sweep with the clutter map's gates blanked."""
+    if mask is None or mask.shape[1] != sweep['dbz'].shape[1]:
+        return sweep
+    dbz = sweep['dbz'].copy()
+    dbz[mask[ray_bins(sweep['azimuth'])]] = np.nan
+    return {**sweep, 'dbz': dbz}
+
+
+def write_frame(conn, directory, ts, used, sweeps, lat, lon, now, masks):
+    """Composite the sweeps of `used` radars (clutter removed) into the frame at ts."""
+    field = composite([declutter(sweeps[s], clutter_mask(directory, s, now, masks)) for s in used], lat, lon)
+    radar_store.frame_path(directory, ts).write_bytes(render(field))
+    summary = json.dumps(cell_summary(field, lat, lon), separators=(',', ':'))
+    with conn:
+        conn.execute('INSERT OR REPLACE INTO radar_frames(ts, sites, cells, rev) VALUES (?, ?, ?, ?)',
+                     (ts, ','.join(used), summary, now))
+
+
+def rebuild(directory, now=None):
+    """Redraw every stored frame from the saved sweeps (after a change to clutter or colours)."""
+    now = int(time.time()) if now is None else now
+    conn = radar_store.connect(directory)
+    lat, lon = grid()
+    masks, done = {}, 0
+    try:
+        stamps = {site: sweep_stamps(directory, site) for site in ('LCA', 'PFO')}
+        for ts, sites in conn.execute('SELECT ts, sites FROM radar_frames ORDER BY ts').fetchall():
+            used, sweeps = sites.split(','), {}
+            for site in used:
+                near = [t for t in stamps[site] if 0 <= ts - t <= PAIR_SECONDS]
+                if near:
+                    sweeps[site] = load_sweep(stamps[site][max(near)])
+            if set(sweeps) != set(used):
+                continue
+            write_frame(conn, directory, ts, used, sweeps, lat, lon, now, masks)
+            done += 1
+    finally:
+        conn.close()
+    return done
+
+
 def collect(directory, html=None, opener=RangeFile, now=None):
     """Turn every new raw volume into a frame; returns the number of new frames."""
     now = int(time.time()) if now is None else now
     html = html if html is not None else urlopen(Request(LIST_URL, headers=UA), timeout=60).read().decode('utf-8', 'replace')
     conn = radar_store.connect(directory)
     lat, lon = grid()
-    made = 0
+    made, masks = 0, {}
     try:
         done = {r[0] for r in conn.execute('SELECT name FROM radar_files')}
         files = list_files(html)
@@ -290,12 +405,8 @@ def collect(directory, html=None, opener=RangeFile, now=None):
                     except Exception:
                         logging.exception('Radar file %s not read', candidates[-1])
             used = sorted(s for s, (t, _) in latest.items() if 0 <= ts - t <= PAIR_SECONDS)
-            field = composite([latest[s][1] for s in used], lat, lon)
-            radar_store.frame_path(directory, ts).write_bytes(render(field))
-            summary = json.dumps(cell_summary(field, lat, lon), separators=(',', ':'))
+            write_frame(conn, directory, ts, used, {s: latest[s][1] for s in used}, lat, lon, now, masks)
             with conn:
-                conn.execute('INSERT OR REPLACE INTO radar_frames(ts, sites, cells) VALUES (?, ?, ?)',
-                             (ts, ','.join(used), summary))
                 conn.execute('INSERT OR REPLACE INTO radar_files(name, site, ts, processed) VALUES (?, ?, ?, ?)',
                              (name, site, ts, now))
             made += 1
@@ -318,8 +429,12 @@ def main():
     parser = argparse.ArgumentParser(description='CyDoM rain radar frames')
     parser.add_argument('--dir', required=True, help='frames directory (radar.sqlite3 lives there too)')
     parser.add_argument('--loop', action='store_true')
+    parser.add_argument('--rebuild', action='store_true', help='redraw the stored frames from the saved sweeps and exit')
     args = parser.parse_args()
     logging.basicConfig(level=logging.INFO)
+    if args.rebuild:
+        logging.info('Radar frames redrawn: %d', rebuild(args.dir))
+        return
     while True:
         try:
             made = collect(args.dir)

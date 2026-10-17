@@ -37,10 +37,11 @@ def connect(directory, readonly=False):
     conn = sqlite3.connect(path, timeout=30)
     conn.execute('PRAGMA journal_mode=WAL')
     conn.executescript(SCHEMA)
-    try:  # frames written before the per-cell summary existed
-        conn.execute('ALTER TABLE radar_frames ADD COLUMN cells TEXT')
-    except sqlite3.OperationalError:
-        pass
+    for column in ('cells TEXT', 'rev INTEGER'):  # added after the first frames were written
+        try:
+            conn.execute(f'ALTER TABLE radar_frames ADD COLUMN {column}')
+        except sqlite3.OperationalError:
+            pass
     return conn
 
 
@@ -50,14 +51,15 @@ def frames(directory, start, end):
         return {'available': False, 'bounds': BOUNDS, 'frames': []}
     conn = connect(directory, readonly=True)
     try:
-        rows = conn.execute('SELECT ts, sites FROM radar_frames WHERE ts BETWEEN ? AND ? ORDER BY ts',
+        rows = conn.execute('SELECT ts, sites, rev FROM radar_frames WHERE ts BETWEEN ? AND ? ORDER BY ts',
                             (start, end)).fetchall()
     except sqlite3.OperationalError:
         rows = []
     finally:
         conn.close()
+    # rev changes when a frame is redrawn: the client adds it to the (long-cached) image URL.
     return {'available': True, 'bounds': BOUNDS,
-            'frames': [{'ts': ts, 'sites': sites.split(',')} for ts, sites in rows]}
+            'frames': [{'ts': ts, 'sites': sites.split(','), 'rev': rev} for ts, sites, rev in rows]}
 
 
 def cells(directory, start, end):

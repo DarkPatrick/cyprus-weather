@@ -106,7 +106,7 @@ def test_collect_pairs_both_radars_and_skips_known_files(tmp_path):
         buffer.seek(0)
     assert radar.collect(str(tmp_path), html=html, opener=opener, now=now) == 0
     frames = radar_store.frames(str(tmp_path), 0, 2 ** 40)['frames']
-    assert [f['sites'] for f in frames] == [['LCA'], ['LCA', 'PFO']]
+    assert [f['sites'] for f in frames] == [['LCA'], ['LCA', 'PFO']] and frames[-1]['rev'] == now
     assert radar_store.frame_path(str(tmp_path), frames[-1]['ts']).is_file()
     summary = radar_store.cells(str(tmp_path), 0, 2 ** 40)['frames']
     assert [len(f['cells']) for f in summary] == [1, 2] and summary[-1]['sites'] == ['LCA', 'PFO']
@@ -151,12 +151,45 @@ def test_sweeps_are_kept_reused_for_pairing_and_expire_after_a_week(tmp_path):
     assert not list((tmp_path / 'sweeps').glob('*.npz')) and radar_store.frames(str(tmp_path), 0, 2 ** 40)['frames'] == []
 
 
+def test_echo_that_never_moves_is_clutter_and_rain_that_passes_is_not(tmp_path, monkeypatch):
+    monkeypatch.setattr(radar, 'CLUTTER_MIN_SWEEPS', 10)
+    t0 = 1_792_000_000
+    for k in range(20):  # a fixed echo 5 km north in every sweep, a rain cell at 40 km east in 3 of 20
+        sweep = radar.read_sweep(volume(*LCA, cell=(10, 5, 35), first_azimuth=(7 * k) % 360))
+        if k < 3:
+            rain = radar.read_sweep(volume(*LCA, cell=(90, 40, 40), first_azimuth=(7 * k) % 360))
+            sweep['dbz'] = np.fmax(sweep['dbz'], rain['dbz'])
+        radar.save_sweep(tmp_path / 'sweeps' / f'LCA_{t0 + k * 600}.npz', sweep)
+    now = t0 + 20 * 600
+    mask = radar.clutter_mask(str(tmp_path), 'LCA', now)
+    assert (tmp_path / 'clutter' / 'LCA.npz').is_file() and mask[10, 50] and not mask[90, 400]
+    rain = radar.read_sweep(volume(*LCA, cell=(90, 40, 40), first_azimuth=123))
+    clutter = radar.read_sweep(volume(*LCA, cell=(10, 5, 35), first_azimuth=123))
+    assert np.isnan(radar.declutter(clutter, mask)['dbz']).all()
+    assert np.nanmax(radar.declutter(rain, mask)['dbz']) == pytest.approx(40, abs=0.01)
+    assert radar.clutter_mask(str(tmp_path), 'PFO', now) is None  # too few sweeps: nothing removed
+
+
+def test_rebuild_redraws_stored_frames_from_saved_sweeps(tmp_path):
+    lca = 'LONGRANGE_LCA_20261015085950_00.h5'
+    html = f'<a href="/uploads/radars/{lca}">{lca}</a>'
+    buffer = volume(*LCA, cell=(10, 30, 35))
+    now = radar.file_time(lca) + 600
+    radar.collect(str(tmp_path), html=html, opener=lambda url: buffer, now=now)
+    frame = radar_store.frame_path(str(tmp_path), radar.file_time(lca))
+    frame.write_bytes(b'stale')
+    assert radar.rebuild(str(tmp_path), now=now + 60) == 1
+    assert frame.read_bytes().startswith(b'\x89PNG')
+    assert radar_store.frames(str(tmp_path), 0, 2 ** 40)['frames'][0]['rev'] == now + 60
+
+
 def test_api_lists_frames_and_serves_images(tmp_path):
     db = str(tmp_path / 'w.db')
     directory = radar_store.default_dir(db)
     conn = radar_store.connect(directory)
     with conn:
-        conn.execute('INSERT INTO radar_frames VALUES (?, ?, ?)', (1792054232, 'LCA,PFO', '[[35.0,33.5,120,10,41.5]]'))
+        conn.execute('INSERT INTO radar_frames(ts, sites, cells, rev) VALUES (?, ?, ?, ?)',
+                     (1792054232, 'LCA,PFO', '[[35.0,33.5,120,10,41.5]]', 7))
     conn.close()
     radar_store.frame_path(directory, 1792054232).write_bytes(b'\x89PNG test')
     server = make_server('127.0.0.1', 0, db, str(tmp_path / 'ai'))
@@ -166,7 +199,7 @@ def test_api_lists_frames_and_serves_images(tmp_path):
     try:
         with urlopen(base + '/weather/radar?from=1792050000&to=1792060000') as response:
             data = json.load(response)
-        assert data['frames'] == [{'ts': 1792054232, 'sites': ['LCA', 'PFO']}] and data['bounds'] == radar_store.BOUNDS
+        assert data['frames'] == [{'ts': 1792054232, 'sites': ['LCA', 'PFO'], 'rev': 7}] and data['bounds'] == radar_store.BOUNDS
         with urlopen(base + '/weather/radar-cells?from=1792050000&to=1792060000') as response:
             cells = json.load(response)
         assert cells['frames'] == [{'ts': 1792054232, 'sites': ['LCA', 'PFO'], 'cells': [[35.0, 33.5, 120, 10, 41.5]]}]

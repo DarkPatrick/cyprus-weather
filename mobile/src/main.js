@@ -416,7 +416,8 @@ function drawRadar(at){
   $('mapradarinfo').textContent=enabled?tr(list.length?'map.radarNone':'map.radarOff'):'';
   return;
  }
- const url=`${base}/api/radar/${frame.ts}.png`;
+ // rev changes when the server redraws a frame; the image itself is cached for a day.
+ const url=`${base}/api/radar/${frame.ts}.png${frame.rev?'?v='+frame.rev:''}`;
  if(!radarOverlay)radarOverlay=L.imageOverlay(url,radarFrames.bounds,{pane:'radar',opacity:.85,interactive:false}).addTo(map);
  else if(radarOverlay._url!==url)radarOverlay.setUrl(url);
  $('mapradarinfo').textContent=tr('map.radarFrame',{time:time(frame.ts*1000)});
