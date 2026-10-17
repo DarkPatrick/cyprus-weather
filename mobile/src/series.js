@@ -16,6 +16,17 @@ export function points(data,key,from=-Infinity,to=Infinity,shift=0,step=3600){
  }
  return out;
 }
+// What a chart series shows at time `at` (ms): its nearest point, if that is no farther than the
+// series' own typical spacing. Hourly and daily series on one chart then read side by side.
+export function valueAt(data,at){
+ const pts=(data||[]).filter(p=>p?.[1]!=null);
+ if(!pts.length||at==null)return null;
+ let best=null;
+ for(const p of pts){const dt=Math.abs(p[0]-at);if(!best||dt<best.dt)best={value:p[1],dt};}
+ const gaps=pts.slice(1).map((p,i)=>p[0]-pts[i][0]).sort((a,b)=>a-b);
+ const step=gaps.length?gaps[gaps.length>>1]:3600000;
+ return best.dt<=step?best:null;
+}
 export function latest(data,key,now,maxAge=3600){
  for(let i=(data?.ts?.length||0)-1;i>=0;i--){
   const t=data.ts[i]; if(t<=now&&t>now-maxAge&&data[key]?.[i]!=null)return {value:data[key][i],ts:t};

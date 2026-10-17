@@ -23,7 +23,7 @@ import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { App } from '@capacitor/app';
 import { sunPosition,sunTimes,sunWindow,sunPhase,HOUR } from './sun.js';
-import {points,latest,stress,stressClass,POLLUTANTS,AIR_MODEL_ONLY,AIR_CARDS,mapReading,rollingWindow,windDirection} from './series.js';
+import {points,latest,valueAt,stress,stressClass,POLLUTANTS,AIR_MODEL_ONLY,AIR_CARDS,mapReading,rollingWindow,windDirection} from './series.js';
 
 const $=id=>document.getElementById(id);
 const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -466,7 +466,7 @@ function drawChart(key){
  let {from,to}=rollingWindow(t);
  let series=[],axes=[{type:'value',name:metrics[key][1],scale:true}],note=tr("chart.lineHelp");
  const line=(label,data,forecast=false,axis=0,bar=false,color=null)=>({name:label,type:bar?'bar':'line',showSymbol:false,connectNulls:false,yAxisIndex:axis,data,
-  lineStyle:{type:forecast?'dashed':'solid',width:2},itemStyle:{color:color||undefined,opacity:forecast?.6:1},...(bar?{barMaxWidth:14}:{}),emphasis:{focus:'series'}});
+  lineStyle:{type:forecast?'dashed':'solid',width:2},itemStyle:{color:color||undefined,opacity:forecast?.6:1},...(bar?{barMaxWidth:14}:{}),emphasis:{disabled:true}});
  if(key==='sun'){
   const w=sunWindow(t,st.lat,st.lon);from=w.from;to=w.to;
   const pts=[];for(let x=from;x<=to;x+=HOUR)pts.push([x,sunPosition(x,st.lat,st.lon).elevation]);
@@ -536,7 +536,18 @@ function drawChart(key){
  $('chartnote').textContent=has?note:tr('chart.noData')+' '+note;
  $('chartnote').hidden=!$('chartnote').textContent;
  series.push({name:tr("chart.nowBoundary"),type:'line',data:[],markLine:{symbol:'none',silent:true,label:{formatter:tr("common.nowLower")},lineStyle:{color:'#6a867b',type:'dotted'},data:[{xAxis:t}]}});
- chart.setOption({backgroundColor:'transparent',color:dark?['#7fb8de','#e08a62','#a3b46a','#d07fa8']:['#1f5f8b','#c4683f','#6f7f3e','#b3427a'],animation:false,tooltip:{trigger:'axis',confine:true,extraCssText:'max-width:min(280px,80vw);white-space:normal;overflow-wrap:anywhere;',valueFormatter:v=>num(v),formatter:params=>`${date(params[0]?.value?.[0])}<br>`+params.filter(p=>p.value?.[1]!=null).map(p=>`${p.marker}${esc(p.seriesName)}: ${num(p.value[1])}${chartLevel(key,p.value[1],height)&&(key!=='radiation'||p.seriesName.includes('UV'))?' · '+esc(chartLevel(key,p.value[1],height)):''}`).join('<br>')},legend:{type:'scroll',bottom:0,data:[...new Set(series.filter(s=>s.name!==tr("chart.nowBoundary")).map(s=>s.name))],textStyle:{fontSize:10}},grid:{left:55,right:axes.length>1?50:20,top:35,bottom:72},xAxis:{type:'time',min:from,max:to,minInterval:key==='sst'?24*HOUR:HOUR,axisLabel:{formatter:v=>key==='sst'?new Date(v).toLocaleDateString(locale(),{timeZone:'Asia/Nicosia',day:'2-digit',month:'2-digit'}):time(v),fontSize:10},splitLine:{show:false}},yAxis:axes,dataZoom:[{type:'inside',filterMode:'none'}],series});
+ const palette=dark?['#7fb8de','#e08a62','#a3b46a','#d07fa8']:['#1f5f8b','#c4683f','#6f7f3e','#b3427a'];
+ // Every line's value at the hovered moment, not only the series that has a point exactly there.
+ const tooltip=params=>{
+  const at=params[0]?.axisValue??params[0]?.value?.[0],rows=new Map();
+  series.forEach((s,i)=>{
+   if(s.name===tr("chart.nowBoundary"))return;
+   const v=valueAt(s.data,at);if(!v)return;
+   const prev=rows.get(s.name);if(!prev||v.dt<prev.dt)rows.set(s.name,{...v,color:s.itemStyle?.color||palette[i%palette.length]});
+  });
+  return `${date(at)}<br>`+[...rows].map(([name,r])=>`<span style="display:inline-block;margin-right:5px;border-radius:50%;width:9px;height:9px;background:${r.color}"></span>${esc(name)}: ${num(r.value)}${chartLevel(key,r.value,height)&&(key!=='radiation'||name.includes('UV'))?' · '+esc(chartLevel(key,r.value,height)):''}`).join('<br>');
+ };
+ chart.setOption({backgroundColor:'transparent',color:palette,animation:false,tooltip:{trigger:'axis',confine:true,extraCssText:'max-width:min(280px,80vw);white-space:normal;overflow-wrap:anywhere;',formatter:tooltip},legend:{type:'scroll',bottom:0,data:[...new Set(series.filter(s=>s.name!==tr("chart.nowBoundary")).map(s=>s.name))],textStyle:{fontSize:10}},grid:{left:55,right:axes.length>1?50:20,top:35,bottom:72},xAxis:{type:'time',min:from,max:to,minInterval:key==='sst'?24*HOUR:HOUR,axisLabel:{formatter:v=>key==='sst'?new Date(v).toLocaleDateString(locale(),{timeZone:'Asia/Nicosia',day:'2-digit',month:'2-digit'}):time(v),fontSize:10},splitLine:{show:false}},yAxis:axes,dataZoom:[{type:'inside',filterMode:'none'}],series});
 }
 fillShell();start();
 

@@ -25,3 +25,10 @@ test('clear sends the next request of every path to the network',async()=>{
  await load('weather/forecast');await load('weather/forecast');assert.equal(calls,1);
  load.clear();await load('weather/forecast');assert.equal(calls,2);
 });
+test('a chart series reads its nearest point within its own spacing',async()=>{
+ const {valueAt}=await import('../src/series.js');
+ const H=3600000,daily=[[0,26],[24*H,26.5],[48*H,null]],hourly=[[0,25.1],[H,25.2],[2*H,25.3]];
+ assert.equal(valueAt(daily,10*H).value,26);assert.equal(valueAt(daily,14*H).value,26.5);
+ assert.equal(valueAt(hourly,1.4*H).value,25.2);assert.equal(valueAt(hourly,4*H),null);
+ assert.equal(valueAt([],0),null);assert.equal(valueAt(daily,40*H).value,26.5);assert.equal(valueAt(daily,60*H),null);
+});
