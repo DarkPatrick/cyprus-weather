@@ -162,7 +162,7 @@ summary:focus:not(:focus-visible){outline:none}
   .grid>.card{min-height:130px;padding:16px;border-radius:16px}
   .grid>.card .label{margin-bottom:8px}
   .grid>.card .value{font-size:30px}
-  .grid>.card[data-chart=sun]:not(.featured) .value{font-size:24px;letter-spacing:-.7px}
+  .grid>.card[data-chart=sun]:not(.featured) .value,.grid>.card.moon-times .value{font-size:24px;letter-spacing:-.7px}
   .radiation-overview>.note{margin-top:12px}
   .footer{margin-top:14px}
   .shell{padding-bottom:calc(88px + env(safe-area-inset-bottom))}
@@ -181,7 +181,7 @@ summary:focus:not(:focus-visible){outline:none}
   .grid>.card{min-height:100px;padding:10px}
   .grid>.card .label{font-size:12px;margin-bottom:6px}
   .grid>.card .value{font-size:26px}
-  .grid>.card[data-chart=sun]:not(.featured) .value{font-size:20px}
+  .grid>.card[data-chart=sun]:not(.featured) .value,.grid>.card.moon-times .value{font-size:20px}
   .uv-grid{gap:10px}
   .radiation-overview .uv-tile+.uv-tile{padding-left:10px}
   .radiation-overview .uv-tile .label{font-size:11px}
@@ -198,7 +198,7 @@ summary:focus:not(:focus-visible){outline:none}
  #app[data-tab=sun]:has(#mapwrap:not([open])){
   .shell{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
   .grid>.card{padding:8px;min-height:100px}
-  .grid>.card[data-chart=sun]:not(.featured) .value{font-size:18px}
+  .grid>.card[data-chart=sun]:not(.featured) .value,.grid>.card.moon-times .value{font-size:18px}
   .grid>.card .note{font-size:10px;line-height:1.25;margin-top:4px}
   .grid>.card .label{font-size:11px;margin-bottom:4px}
   .radiation-overview .uv-tile .value{font-size:24px}

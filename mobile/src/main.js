@@ -187,11 +187,11 @@ function render(){
   html=`<div class="sectiontitle"><h2>${tr("nav.sun")}</h2><small>${tr("sun.hourlyCharts")}</small></div><div class="grid">`;
   html+=card('sun',tr("sun.now"),num(pos.elevation),'°',`${chartLevel('sun',pos.elevation)} · ${tr("sun.azimuth",{degrees:num(pos.azimuth,0)})}`,`featured sun-phase sun-${sunPhase(pos.elevation)}`);
   html+=card('sun',tr("sun.sunriseSunset"),`${time(t.rise)} — ${time(t.set)}`,'',tr("sun.timeZone"));
-  html+=moonCards(st);
   html+=`<div class="card wide radiation-overview"><div class="label">${tr("sun.radiationUv")}</div><div class="uv-grid">`;
   html+=card('radiation',tr("sun.uvNow"),u?num(u.value):'—','',uvLevel(u?.value),'uv-tile');
   html+=card('radiation',tr("sun.todayMaximum"),peak?num(peak.value):'—','',uvLevel(peak?.value),'uv-tile');
-  html+=`</div><div class="note">${r?num(r.value,0)+' '+tr('units.radiation'):tr("sun.noStationRadiation")} · UV: CAMS</div></div></div>`;
+  html+=`</div><div class="note">${r?num(r.value,0)+' '+tr('units.radiation'):tr("sun.noStationRadiation")} · UV: CAMS</div></div>`;
+  html+=moonCards(st)+'</div>';
  }else if(state.tab==='air'){
   html=`<div class="sectiontitle"><h2>${tr("nav.air")}</h2><small>${tr("air.hourly")}</small></div><div class="grid">`;
   const measuredSources=new Map(),modelCards=[];
@@ -235,7 +235,7 @@ function moonCards(st){
  const at=now(),m=moonState(at,st.lat,st.lon),times=moonTimes(at,st.lat,st.lon),next=nextPhases(at);
  const phase=tr('moon.phase.'+phaseKey(m.phase));
  let html=card('moon',tr("moon.now"),num(m.elevation),'°',`${phase} · ${tr("sun.azimuth",{degrees:num(m.azimuth,0)})}`,`moon-now ${m.elevation>0?'moon-up':'moon-down'}`);
- html+=card('moon',tr("moon.riseSet"),`${time(times.rise)} — ${time(times.set)}`,'',tr("sun.timeZone"));
+ html+=card('moon',tr("moon.riseSet"),`${time(times.rise)} — ${time(times.set)}`,'',tr("sun.timeZone"),'moon-times');
  const facts=[tr('moon.illuminated',{percent:num(m.fraction*100,0)}),tr('moon.age',{days:num(m.age)}),tr('moon.distance',{km:num(Math.round(m.distanceKm/100)*100,0)})];
  const upcoming=[[next.newMoon,'moon.newMoon'],[next.fullMoon,'moon.fullMoon']].sort((a,b)=>a[0]-b[0]).map(([ms,key])=>tr(key,{date:date(ms)}));
  html+=`<button class="card wide moon-phase" data-chart="moon" aria-label="${esc(phase+' · '+facts[0])}">${moonSVG(m,112,esc(phase))}<div class="moon-text"><div class="label">${esc(phase)}</div><div class="moon-facts">${facts.map(esc).join('<br>')}</div><div class="note">${upcoming.map(esc).join(' · ')}<br>${esc(m.elevation>0?tr('moon.view',{station:name(st.code)}):tr('moon.belowHorizon'))}</div></div></button>`;
