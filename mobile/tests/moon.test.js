@@ -16,9 +16,13 @@ test('an evening crescent over Limassol shows its lit side down and to the right
  assert.equal(phaseKey(s.phase),'waxingCrescent');
  assert.ok(s.distanceKm>356000&&s.distanceKm<407000);
 });
-test('rise, set and the next phases come after the moment asked',()=>{
+test('moonrise and moonset fall on the local day asked; the next phases come after it',()=>{
  const t=Date.UTC(2026,10,5,12),times=moonTimes(t,34.68,33.04),next=nextPhases(t);
- assert.ok(times.rise>t&&times.set>t&&times.rise-t<2*86400e3);
+ const day=ms=>new Date(ms).toLocaleDateString('en-CA',{timeZone:'Asia/Nicosia'});
+ assert.equal(day(times.rise),'2026-11-05');assert.equal(day(times.set),'2026-11-05');
+ // A day without a moonrise or moonset gives null rather than the next day's event.
+ const missing=Array.from({length:31},(_,i)=>moonTimes(Date.UTC(2026,10,1+i,10),34.68,33.04)).filter(x=>x.rise==null||x.set==null);
+ assert.ok(missing.length>=1&&missing.length<=3);
  assert.ok(next.newMoon>t&&next.fullMoon>next.newMoon&&next.fullMoon-t<30*86400e3);
 });
 test('lit shape and screen rotation',()=>{

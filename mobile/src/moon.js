@@ -42,12 +42,25 @@ export function moonPosition(ms,lat,lon){
  return {elevation:horizon.altitude,azimuth:horizon.azimuth};
 }
 
-// The next moonrise and moonset after ms (either may be more than a day away: the Moon
-// rises about 50 minutes later every day and skips one rise or set a month).
+// Moonrise and moonset on the local (Cyprus) calendar day of ms, like sunrise and sunset;
+// null when the Moon does not rise or set that day (it happens once a month: the Moon
+// rises about 50 minutes later every day).
+const dayOf=ms=>new Date(ms).toLocaleDateString('en-CA',{timeZone:'Asia/Nicosia'});
 export function moonTimes(ms,lat,lon){
- const observer=new Observer(lat,lon,0),from=new Date(ms);
- const next=direction=>SearchRiseSet(Body.Moon,observer,direction,from,2)?.date.getTime()??null;
- return {rise:next(+1),set:next(-1)};
+ const observer=new Observer(lat,lon,0),day=dayOf(ms);
+ const find=direction=>{
+  let from=ms-36*3600e3;
+  for(let i=0;i<4;i++){
+   const t=SearchRiseSet(Body.Moon,observer,direction,new Date(from),3)?.date.getTime();
+   if(t==null)return null;
+   const d=dayOf(t);
+   if(d===day)return t;
+   if(d>day)return null;
+   from=t+60e3;
+  }
+  return null;
+ };
+ return {rise:find(+1),set:find(-1)};
 }
 
 // Upcoming new moon and full moon.

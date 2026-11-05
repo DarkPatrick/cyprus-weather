@@ -234,9 +234,8 @@ function render(){
 function moonCards(st){
  const at=now(),m=moonState(at,st.lat,st.lon),times=moonTimes(at,st.lat,st.lon),next=nextPhases(at);
  const phase=tr('moon.phase.'+phaseKey(m.phase));
- const when=ms=>ms==null?'—':(ms-at>20*HOUR?date(ms):time(ms));
  let html=card('moon',tr("moon.now"),num(m.elevation),'°',`${phase} · ${tr("sun.azimuth",{degrees:num(m.azimuth,0)})}`,`moon-now ${m.elevation>0?'moon-up':'moon-down'}`);
- html+=card('moon',tr("moon.riseSet"),`↑ ${when(times.rise)}  ↓ ${when(times.set)}`,'',tr("moon.next"));
+ html+=card('moon',tr("moon.riseSet"),`${time(times.rise)} — ${time(times.set)}`,'',tr("sun.timeZone"));
  const facts=[tr('moon.illuminated',{percent:num(m.fraction*100,0)}),tr('moon.age',{days:num(m.age)}),tr('moon.distance',{km:num(Math.round(m.distanceKm/100)*100,0)})];
  const upcoming=[[next.newMoon,'moon.newMoon'],[next.fullMoon,'moon.fullMoon']].sort((a,b)=>a[0]-b[0]).map(([ms,key])=>tr(key,{date:date(ms)}));
  html+=`<button class="card wide moon-phase" data-chart="moon" aria-label="${esc(phase+' · '+facts[0])}">${moonSVG(m,112,esc(phase))}<div class="moon-text"><div class="label">${esc(phase)}</div><div class="moon-facts">${facts.map(esc).join('<br>')}</div><div class="note">${upcoming.map(esc).join(' · ')}<br>${esc(m.elevation>0?tr('moon.view',{station:name(st.code)}):tr('moon.belowHorizon'))}</div></div></button>`;
