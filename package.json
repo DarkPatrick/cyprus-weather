@@ -13,10 +13,11 @@
     "ios:add": "npm install @capacitor/ios@8 && npm run build && cap add ios"
   },
   "dependencies": {
-    "@capacitor/core": "^8.0.0",
     "@capacitor/android": "^8.0.0",
-    "@capacitor/geolocation": "^8.0.0",
     "@capacitor/app": "^8.0.0",
+    "@capacitor/core": "^8.0.0",
+    "@capacitor/geolocation": "^8.0.0",
+    "astronomy-engine": "2.1.19",
     "echarts": "^6.0.0",
     "leaflet": "^1.9.4"
   },

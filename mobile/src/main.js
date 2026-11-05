@@ -23,6 +23,7 @@ import { Capacitor, SystemBars, SystemBarsStyle } from '@capacitor/core';
 import { Geolocation } from '@capacitor/geolocation';
 import { App } from '@capacitor/app';
 import { sunPosition,sunTimes,sunWindow,sunPhase,HOUR } from './sun.js';
+import {moonState,moonPosition,moonTimes,nextPhases,phaseKey,moonSVG} from './moon.js';
 import {points,latest,valueAt,stress,stressClass,POLLUTANTS,AIR_MODEL_ONLY,AIR_CARDS,mapReading,rollingWindow,windDirection} from './series.js';
 
 const $=id=>document.getElementById(id);
@@ -31,7 +32,7 @@ const num=(v,n=1)=>v==null||!Number.isFinite(Number(v))?'—':Number(v).toLocale
 const time=t=>t==null?'—':new Date(t).toLocaleTimeString(locale(),{timeZone:'Asia/Nicosia',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 const date=t=>t==null?'—':new Date(t).toLocaleString(locale(),{timeZone:'Asia/Nicosia',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
 const base=(import.meta.env.VITE_API_BASE||'').replace(/\/$/,'');
-let metrics;function localizedMetrics(){metrics={temp:[tr("weather.temperature"),'°C'],utci_shade:[tr("weather.shadeUtci"),'°C'],utci_sun:[tr("weather.sunUtci"),'°C'],net:['NET','°C'],wind10:[tr("weather.wind"),tr("units.wind")],rh:[tr("weather.humidity"),'%'],rain:[tr("weather.precipitation"),tr("units.rain")],p_station:[tr("weather.pressure"),tr("units.pressure")],sst:[tr("weather.seaTemperature"),'°C'],sun:[tr("sun.elevation"),'°'],radiation:[tr("sun.radiationChart"),''],pm25:['PM2.5',tr("units.pollution")],pm10:['PM10',tr("units.pollution")],no2:['NO₂',tr("units.pollution")],o3:['O₃',tr("units.pollution")],so2:['SO₂',tr("units.pollution")],co:['CO',tr("units.pollution")],dust:[tr("air.dust"),tr("units.pollution")],eaqi:['EAQI','']};}localizedMetrics();
+let metrics;function localizedMetrics(){metrics={temp:[tr("weather.temperature"),'°C'],utci_shade:[tr("weather.shadeUtci"),'°C'],utci_sun:[tr("weather.sunUtci"),'°C'],net:['NET','°C'],wind10:[tr("weather.wind"),tr("units.wind")],rh:[tr("weather.humidity"),'%'],rain:[tr("weather.precipitation"),tr("units.rain")],p_station:[tr("weather.pressure"),tr("units.pressure")],sst:[tr("weather.seaTemperature"),'°C'],sun:[tr("sun.elevation"),'°'],moon:[tr("moon.elevation"),'°'],radiation:[tr("sun.radiationChart"),''],pm25:['PM2.5',tr("units.pollution")],pm10:['PM10',tr("units.pollution")],no2:['NO₂',tr("units.pollution")],o3:['O₃',tr("units.pollution")],so2:['SO₂',tr("units.pollution")],co:['CO',tr("units.pollution")],dust:[tr("air.dust"),tr("units.pollution")],eaqi:['EAQI','']};}localizedMetrics();
 const state={stations:[],station:localStorage.getItem('station')||'',tab:'weather',snapshot:null,obs:null,model:null,uv:null,air:null,marine:null,sea:null,forecast:null,ai:null,health:null,errors:[],generation:0,location:null,elevation:null};
 // Elevation is no longer entered by hand; drop the value older builds stored.
 localStorage.removeItem('altitude');
@@ -186,6 +187,7 @@ function render(){
   html=`<div class="sectiontitle"><h2>${tr("nav.sun")}</h2><small>${tr("sun.hourlyCharts")}</small></div><div class="grid">`;
   html+=card('sun',tr("sun.now"),num(pos.elevation),'°',`${chartLevel('sun',pos.elevation)} · ${tr("sun.azimuth",{degrees:num(pos.azimuth,0)})}`,`featured sun-phase sun-${sunPhase(pos.elevation)}`);
   html+=card('sun',tr("sun.sunriseSunset"),`${time(t.rise)} — ${time(t.set)}`,'',tr("sun.timeZone"));
+  html+=moonCards(st);
   html+=`<div class="card wide radiation-overview"><div class="label">${tr("sun.radiationUv")}</div><div class="uv-grid">`;
   html+=card('radiation',tr("sun.uvNow"),u?num(u.value):'—','',uvLevel(u?.value),'uv-tile');
   html+=card('radiation',tr("sun.todayMaximum"),peak?num(peak.value):'—','',uvLevel(peak?.value),'uv-tile');
@@ -226,6 +228,19 @@ function render(){
  $('content').querySelectorAll('img').forEach(img=>img.onerror=()=>{img.replaceWith(Object.assign(document.createElement('p'),{className:'muted',textContent:tr("common.imageUnavailable")}));});
  const ts=s.latest_ts; $('status').textContent=`${name(st.code)} · ${ts?tr('status.observation',{date:date(ts*1000)}):tr("status.noCurrent")}`;
  $('errors').innerHTML=state.errors.map(e=>`<div class="error">${esc(e)}</div>`).join('');
+}
+// The Moon block of the Sun tab: position now, the next rise and set, and the phase drawn
+// with the lit side turned as it really is in the sky above the station.
+function moonCards(st){
+ const at=now(),m=moonState(at,st.lat,st.lon),times=moonTimes(at,st.lat,st.lon),next=nextPhases(at);
+ const phase=tr('moon.phase.'+phaseKey(m.phase));
+ const when=ms=>ms==null?'—':(ms-at>20*HOUR?date(ms):time(ms));
+ let html=card('moon',tr("moon.now"),num(m.elevation),'°',`${phase} · ${tr("sun.azimuth",{degrees:num(m.azimuth,0)})}`,`moon-now ${m.elevation>0?'moon-up':'moon-down'}`);
+ html+=card('moon',tr("moon.riseSet"),`↑ ${when(times.rise)}  ↓ ${when(times.set)}`,'',tr("moon.next"));
+ const facts=[tr('moon.illuminated',{percent:num(m.fraction*100,0)}),tr('moon.age',{days:num(m.age)}),tr('moon.distance',{km:num(Math.round(m.distanceKm/100)*100,0)})];
+ const upcoming=[[next.newMoon,'moon.newMoon'],[next.fullMoon,'moon.fullMoon']].sort((a,b)=>a[0]-b[0]).map(([ms,key])=>tr(key,{date:date(ms)}));
+ html+=`<button class="card wide moon-phase" data-chart="moon" aria-label="${esc(phase+' · '+facts[0])}">${moonSVG(m,112,esc(phase))}<div class="moon-text"><div class="label">${esc(phase)}</div><div class="moon-facts">${facts.map(esc).join('<br>')}</div><div class="note">${upcoming.map(esc).join(' · ')}<br>${esc(m.elevation>0?tr('moon.view',{station:name(st.code)}):tr('moon.belowHorizon'))}</div></div></button>`;
+ return html;
 }
 function renderRadar(){
  const status=state.marine?.radar||{},at=now()/1000;
@@ -473,6 +488,12 @@ function drawChart(key){
   series=[line(tr("sun.elevationSeries"),pts,false,0,false,'#c98a2b'),{name:tr("common.now"),type:'scatter',data:[[t,sunPosition(t,st.lat,st.lon).elevation]],symbolSize:11,itemStyle:{color:'#1f5f8b'}}];
   series[0].markLine={symbol:'none',silent:true,data:[[0,tr("sun.horizon")],[-6,tr("sun.civilTwilightLine")],[-12,tr("sun.nauticalTwilightLine")],[-18,tr("sun.astronomicalTwilightLine")]].map(([height,label])=>({yAxis:height,name:label,lineStyle:{color:height===0?'#5e7180':'#a9b4bc',type:'dashed'},label:{formatter:label,position:'insideStartTop',fontSize:9,lineHeight:10,color:dark?'#b3c3cf':'#4f6474',backgroundColor:dark?'#14232e':'#fcfbf8'}}))};
   note='';
+ }else if(key==='moon'){
+  from=t-12*HOUR;to=t+12*HOUR;
+  const pts=[];for(let x=from;x<=to;x+=HOUR/6)pts.push([x,moonPosition(x,st.lat,st.lon).elevation]);
+  series=[line(tr("moon.elevationSeries"),pts,false,0,false,'#7d8cab'),{name:tr("common.now"),type:'scatter',data:[[t,moonPosition(t,st.lat,st.lon).elevation]],symbolSize:11,itemStyle:{color:'#1f5f8b'}}];
+  series[0].markLine={symbol:'none',silent:true,data:[{yAxis:0,name:tr("sun.horizon"),lineStyle:{color:'#5e7180',type:'dashed'},label:{formatter:tr("sun.horizon"),position:'insideStartTop',fontSize:9,color:dark?'#b3c3cf':'#4f6474'}}]};
+  note=tr("moon.chartHelp");
  }else if(key==='sst'){
   from=t-7*24*HOUR;to=t;
   const official=line(tr("chart.seaOfficial"),points(state.marine?.sst,'sst',from,to,0,86400),false,0,false,'#c4683f');official.step='middle';
@@ -530,7 +551,7 @@ function drawChart(key){
  }
  const has=series.some(s=>s.data.some(p=>p[1]!=null));
  $('charttitle').textContent=key==='utci_shade'?tr("weather.feelsBoth"):metrics[key][0];// Air pollutants explain what the substance is; the station and source are in the note below.
- $('chartsubtitle').textContent=AIR_CARDS.includes(key)?tr('air.about.'+key):name(st.code)+' · '+(key==='sst'?tr("chart.sevenDays"):key==='sun'?tr("chart.solarHourly"):tr("chart.24past24forecast"));
+ $('chartsubtitle').textContent=AIR_CARDS.includes(key)?tr('air.about.'+key):name(st.code)+' · '+(key==='sst'?tr("chart.sevenDays"):key==='sun'?tr("chart.solarHourly"):key==='moon'?tr("chart.moonHourly"):tr("chart.24past24forecast"));
  const modelAge=state.model?.fetched?Math.floor(t/1000)-state.model.fetched:0;
  if(modelAge>7200&& !['sun','sst'].includes(key))note+=' '+tr('chart.staleModel');
  $('chartnote').textContent=has?note:tr('chart.noData')+' '+note;

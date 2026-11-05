@@ -18,5 +18,6 @@ Kairo shows public weather data from the providers below. The app's own code lic
 ## Software
 
 Bundled npm and Python dependencies keep their own licences, including Apache ECharts
-(Apache-2.0), Leaflet (BSD-2-Clause) and Capacitor (MIT). The weather backend modules
+(Apache-2.0), Leaflet (BSD-2-Clause), Capacitor (MIT) and Astronomy Engine (MIT, Don Cross;
+Moon position, phase and rise/set times). The weather backend modules
 originate from DarkPatrick/aranet4 (see `docs/UPSTREAM.md`).
