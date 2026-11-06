@@ -367,7 +367,7 @@ function showLocation(){
  locationMarker=L.circleMarker([state.location.latitude,state.location.longitude],{radius:6,color:'#1f5f8b'}).addTo(map).bindTooltip(tr("geo.youAreHere"));
 }
 async function applyPosition(p){
- state.location=p.coords;
+ state.location=p.coords;state.locationAt=p.timestamp||now();
  const fresh=state.stations.filter(s=>s.latest&&now()/1000-s.latest.ts<=3600);
  if(!fresh.length)throw Error(tr("geo.noRecentStations"));
  const here=L.latLng(p.coords.latitude,p.coords.longitude);
@@ -427,12 +427,21 @@ function bearing(from,to){
  const r=Math.PI/180,[a,b]=[from[0]*r,to[0]*r],dl=(to[1]-from[1])*r;
  return (Math.atan2(Math.sin(dl)*Math.cos(b),Math.cos(a)*Math.sin(b)-Math.sin(a)*Math.cos(b)*Math.cos(dl))/r+360)%360;
 }
-function showBolt(e){
- if(!bolts||!activeBolts.length)return;
- let best=null;
- for(const i of activeBolts){const d=map.latLngToContainerPoint([bolts.lat[i],bolts.lon[i]]).distanceTo(e.containerPoint);if(d<=BOLT_TAP_PX&&(!best||d<best.d))best={i,d};}
- if(!best)return;
- const i=best.i,at=[bolts.lat[i],bolts.lon[i]],ts=bolts.ts[i]*1000,st=station();
+const LOCATION_MAX_AGE=10*60000;
+// The user's position without asking anything: only when location access is already granted.
+async function silentPosition(){
+ const options={enableHighAccuracy:true,timeout:10000,maximumAge:60000};
+ if(Capacitor.isNativePlatform()){
+  const p=await Geolocation.checkPermissions();
+  if(p.location!=='granted'&&p.coarseLocation!=='granted')return null;
+  return Geolocation.getCurrentPosition({...options,enableHighAccuracy:p.location==='granted'});
+ }
+ if(!navigator.geolocation||!navigator.permissions)return null;
+ if((await navigator.permissions.query({name:'geolocation'})).state!=='granted')return null;
+ return new Promise((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,options));
+}
+function boltPopup(bolt){
+ const at=[bolt.lat,bolt.lon],ts=bolt.ts*1000,st=station();
  const me=state.location?[state.location.latitude,state.location.longitude]:null,from=me||(st?[st.lat,st.lon]:null);
  const minutes=Math.max(0,Math.round((now()-ts)/60000));
  const lines=[`<b>⚡ ${esc(time(ts))}</b> · ${esc(tr('map.boltAgo',{minutes:num(minutes,0)}))}`,
@@ -442,7 +451,23 @@ function showBolt(e){
   lines.push(esc(me?tr('map.boltFromYou',{km,dir}):tr('map.boltFromStation',{km,dir,station:name(st.code)})));
  }
  lines.push(`<span class="muted">${esc(tr('map.boltAccuracy'))}</span>`);
- L.popup({className:'bolt-popup',autoPanPadding:[20,20]}).setLatLng(at).setContent(lines.join('<br>')).openOn(map);
+ return lines.join('<br>');
+}
+function showBolt(e){
+ if(!bolts||!activeBolts.length)return;
+ let best=null;
+ for(const i of activeBolts){const d=map.latLngToContainerPoint([bolts.lat[i],bolts.lon[i]]).distanceTo(e.containerPoint);if(d<=BOLT_TAP_PX&&(!best||d<best.d))best={i,d};}
+ if(!best)return;
+ const bolt={lat:bolts.lat[best.i],lon:bolts.lon[best.i],ts:bolts.ts[best.i]};
+ const popup=L.popup({className:'bolt-popup',autoPanPadding:[20,20]}).setLatLng([bolt.lat,bolt.lon]).setContent(boltPopup(bolt)).openOn(map);
+ // Distance from the user, not the station, whenever location is allowed: refresh a missing or
+ // stale position (the startup fix can fail indoors, or the user has moved) and redraw.
+ if(state.location&&now()-(state.locationAt||0)<LOCATION_MAX_AGE)return;
+ silentPosition().then(p=>{
+  if(!p)return;
+  state.location=p.coords;state.locationAt=p.timestamp||now();showLocation();
+  if(map.hasLayer(popup))popup.setContent(boltPopup(bolt));
+ }).catch(()=>{});
 }
 function stopMap(){clearInterval(mapTimer);mapTimer=null;$('mapplay').textContent='▶';$('mapplay').setAttribute('aria-label',tr("map.play"));$('mapplay').setAttribute('aria-pressed','false');}
 function drawRadar(at){
