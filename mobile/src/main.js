@@ -112,7 +112,7 @@ function fillShell(){
  $('theme').onclick=()=>{const theme=document.documentElement.dataset.theme==='dark'?'light':'dark';localStorage.setItem('theme',theme);document.documentElement.dataset.theme=theme;applyTheme();if(chartKey&&$('detail').open)drawChart(chartKey);};
  $('station').onchange=e=>selectStation(e.target.value);$('refresh').onclick=manualRefresh;$('locate').onclick=locate;
  $('mapwrap').addEventListener('toggle',()=>{if($('mapwrap').open)openMap();else stopMap();});
- $('timeline').oninput=()=>{stopMap();drawMap();};
+ $('timeline').oninput=()=>{stopMap();map?.closePopup();drawMap();};
  $('mapshowbolts').onclick=()=>{if(activeBolts.length)map.fitBounds(activeBolts.map(i=>[bolts.lat[i],bolts.lon[i]]).concat(state.stations.map(st=>[st.lat,st.lon])),{padding:[20,20]});};
  $('mapwind').checked=localStorage.getItem('mapWind')==='true';
  $('mapwind').onchange=()=>{localStorage.setItem('mapWind',String($('mapwind').checked));drawMap();};
@@ -393,6 +393,7 @@ async function openMap(){
  if(!map){map=L.map('map',{zoomControl:false}).setView([35.05,33.1],8);L.control.zoom({zoomInTitle:tr('map.zoomIn'),zoomOutTitle:tr('map.zoomOut')}).addTo(map);new ResetView().addTo(map);L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',maxZoom:18}).addTo(map);map.createPane('radar').style.zIndex=350;radarOverlay=null;layer=L.layerGroup().addTo(map);boltLayer=L.layerGroup().addTo(map);boltCanvas=L.canvas({padding:.2}); fitStations();}
  showLocation();
  map.off('zoomend moveend',drawMap);map.on('zoomend moveend',drawMap);
+ map.off('click',showBolt);map.on('click',showBolt);
  requestAnimationFrame(()=>map.invalidateSize());drawMap();
  $('mapplay').disabled=true;
  const historyOk=await loadMapData();
@@ -419,6 +420,30 @@ const ResetView=L.Control.extend({options:{position:'topleft'},onAdd(){
  return bar;
 }});
 const CLUSTER_PX=24;
+// A tap near a lightning flash (the glyphs are a few px; the finger gets BOLT_TAP_PX) shows
+// when and where it struck and how far, from the user's location if known, else the station.
+const BOLT_TAP_PX=22;
+function bearing(from,to){
+ const r=Math.PI/180,[a,b]=[from[0]*r,to[0]*r],dl=(to[1]-from[1])*r;
+ return (Math.atan2(Math.sin(dl)*Math.cos(b),Math.cos(a)*Math.sin(b)-Math.sin(a)*Math.cos(b)*Math.cos(dl))/r+360)%360;
+}
+function showBolt(e){
+ if(!bolts||!activeBolts.length)return;
+ let best=null;
+ for(const i of activeBolts){const d=map.latLngToContainerPoint([bolts.lat[i],bolts.lon[i]]).distanceTo(e.containerPoint);if(d<=BOLT_TAP_PX&&(!best||d<best.d))best={i,d};}
+ if(!best)return;
+ const i=best.i,at=[bolts.lat[i],bolts.lon[i]],ts=bolts.ts[i]*1000,st=station();
+ const me=state.location?[state.location.latitude,state.location.longitude]:null,from=me||(st?[st.lat,st.lon]:null);
+ const minutes=Math.max(0,Math.round((now()-ts)/60000));
+ const lines=[`<b>⚡ ${esc(time(ts))}</b> · ${esc(tr('map.boltAgo',{minutes:num(minutes,0)}))}`,
+  esc(tr('map.boltCoords',{lat:num(at[0],3),lon:num(at[1],3)}))];
+ if(from){
+  const km=num(L.latLng(from).distanceTo(at)/1000),dir=windDirection(bearing(from,at));
+  lines.push(esc(me?tr('map.boltFromYou',{km,dir}):tr('map.boltFromStation',{km,dir,station:name(st.code)})));
+ }
+ lines.push(`<span class="muted">${esc(tr('map.boltAccuracy'))}</span>`);
+ L.popup({className:'bolt-popup',autoPanPadding:[20,20]}).setLatLng(at).setContent(lines.join('<br>')).openOn(map);
+}
 function stopMap(){clearInterval(mapTimer);mapTimer=null;$('mapplay').textContent='▶';$('mapplay').setAttribute('aria-label',tr("map.play"));$('mapplay').setAttribute('aria-pressed','false');}
 function drawRadar(at){
  const enabled=$('mapradar').checked,list=radarFrames?.frames||[];

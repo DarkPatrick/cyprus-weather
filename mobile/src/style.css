@@ -443,3 +443,4 @@ header>div:first-child{min-width:0}.eyebrow{letter-spacing:1.5px}
 /* Moon */
 :root{--moon-dark:#33404b}:root[data-theme=dark]{--moon-dark:#26323b}
 .moon-phase{display:flex;gap:18px;align-items:center;min-height:0}.moon-phase .moon-disk{flex:none}.moon-text{min-width:0}.moon-text .label{margin-bottom:6px;font-weight:600;color:var(--text)}.moon-facts{font-size:13px;line-height:1.6;color:var(--label)}
+.bolt-popup .leaflet-popup-content{margin:10px 12px;font-size:12px;line-height:1.55}.bolt-popup .muted{font-size:10.5px}[data-theme=dark] .bolt-popup .leaflet-popup-content-wrapper,[data-theme=dark] .bolt-popup .leaflet-popup-tip{background:var(--surface);color:var(--text)}
