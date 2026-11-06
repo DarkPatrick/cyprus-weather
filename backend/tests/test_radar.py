@@ -10,10 +10,19 @@ import pytest
 from PIL import Image
 
 import radar
+import radar_images
 import radar_store
 from server import make_server
 
 LCA = (34.93654, 33.56654)
+
+
+@pytest.fixture(autouse=True)
+def no_cydom_images(monkeypatch):
+    """collect() reads a radar's picture when its raw volumes are missing: never the real site in tests."""
+    def offline(name):
+        raise OSError('no network in tests')
+    monkeypatch.setattr(radar_images, 'fetch', offline)
 
 
 def volume(lat, lon, cell=None, rays=360, gates=2500, step=100.0, first_azimuth=0.0, scans=((1, 5.0), (0, 0.5)), cell_scan=0):
@@ -223,3 +232,61 @@ def test_api_lists_frames_and_serves_images(tmp_path):
         server.shutdown()
         server.server_close()
         worker.join()
+
+
+def picture(site, label='06.11.2026 14:10', blobs=()):
+    """A CyDoM-like MAX image: dark map, a time label box, flat legend-coloured blobs at (km east, km north, dBZ)."""
+    rgb = np.zeros((542, 800, 3), dtype=np.uint8)
+    rgb[...] = (22, 22, 48)
+    x0, y0, x1, y1 = radar_images.LABEL
+    rgb[y0:y1, x0:x1] = 255
+    rgb[y0 + 5:y0 + 15, x0 + 10:x0 + 10 + 8 * len(label)] = [sum(map(ord, label)) % 200] * 3
+    _, (cx, cy), kmpp, _ = radar_images.SITES[site]
+    colours = {lo: c for c, lo in radar_images.LEGEND}
+    for east, north, dbz in blobs:
+        x, y = int(round(cx + east / kmpp)), int(round(cy - north / kmpp))
+        rgb[y - 3:y + 4, x - 3:x + 4] = colours[dbz // 5 * 5]
+    return Image.fromarray(rgb)
+
+
+def test_image_colours_and_geometry_give_a_pseudo_sweep():
+    sweep = radar_images.to_sweep('LCA', picture('LCA', blobs=[(50, 0, 42)]))
+    ray, gate = np.unravel_index(np.nanargmax(sweep['dbz']), sweep['dbz'].shape)
+    assert np.nanmax(sweep['dbz']) == pytest.approx(42.5)          # middle of the 40-45 step
+    assert abs(sweep['azimuth'][ray] - 90) <= 4                       # due east of the radar
+    assert abs((gate + 0.5) * sweep['range_step'] / 1000 - 50) <= 4   # 50 km out
+    field = radar.sample(sweep, *radar.grid())
+    row, col = np.unravel_index(np.nanargmax(field), field.shape)
+    glat, glon = radar.grid()
+    assert abs(glat[row, col] - LCA[0]) < 0.05 and abs(glon[row, col] - (LCA[1] + 50 / 91.3)) < 0.06
+
+
+def test_only_a_picture_whose_time_label_changed_is_used(tmp_path):
+    frozen = picture('LCA', label='04.11.2026 05:36', blobs=[(30, 30, 35)])
+    shots = iter([(frozen, 1000), (frozen, 1900), (picture('LCA', label='06.11.2026 14:10', blobs=[(30, 30, 35)]), 2800),
+                  (picture('LCA', label='06.11.2026 14:10', blobs=[(30, 30, 35)]), 3700)])
+    fetcher = lambda name: next(shots)
+    assert radar_images.poll(str(tmp_path), 'LCA', now=1010, fetcher=fetcher) is None   # first sight
+    assert radar_images.poll(str(tmp_path), 'LCA', now=1910, fetcher=fetcher) is None   # still the same moment
+    assert radar_images.poll(str(tmp_path), 'LCA', now=2810, fetcher=fetcher) == 2800   # the label changed
+    assert radar_images.poll(str(tmp_path), 'LCA', now=3710, fetcher=fetcher) is None   # stored already
+    assert list(radar_images.stamps(str(tmp_path), 'LCA')) == [2800]
+
+
+def test_a_radar_without_raw_volumes_is_taken_from_its_live_picture(tmp_path, monkeypatch):
+    pfo = 'LONGRANGE_PFO_20261106141006_00.h5'
+    t = radar.file_time(pfo)
+    names = {pfo: volume(34.77085, 32.54716, cell=(90, 30, 35))}
+    html = f'<a href="/uploads/radars/{pfo}">{pfo}</a>'
+    shots = {'n': 0}
+
+    def fetcher(name):
+        if name != radar_images.SITES['LCA'][0]:
+            raise OSError('only the Larnaca picture in this test')
+        shots['n'] += 1
+        return picture('LCA', label=f'shot {shots["n"]}', blobs=[(0, 40, 47)]), t - 60
+    monkeypatch.setattr(radar_images, 'fetch', fetcher)
+    radar.collect(str(tmp_path), html='', opener=lambda url: None, now=t - 300)        # first sight of the picture
+    radar.collect(str(tmp_path), html=html, opener=lambda url: names[url.rsplit('/', 1)[-1]], now=t + 120)
+    frames = radar_store.frames(str(tmp_path), 0, 2 ** 40)['frames']
+    assert ['LCA(image)', 'PFO'] in [f['sites'] for f in frames]

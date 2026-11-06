@@ -24,6 +24,7 @@ import h5py
 import numpy as np
 from PIL import Image
 
+import radar_images
 import radar_store
 
 LIST_URL = 'https://agromet.dom.org.cy/stations_data/radar'
@@ -38,6 +39,7 @@ HEAVY_DBZ = 30                    # about 3 mm/h and more
 MAX_ELEVATION = 4.1                # degrees: sweeps combined into the column maximum
 MAX_RAY_GAP = 1.5                 # degrees between a pixel and the nearest ray
 LOOP_SECONDS = 180
+RAW_GAP_SECONDS = 30 * 60         # no raw volume of a radar for this long: read its image instead
 GONE_SECONDS = 20 * 60           # a listed volume answering 404 for longer than this is deleted
 # Static clutter map: a spot with echo in at least CLUTTER_SHARE of a radar's sweeps over the
 # last CLUTTER_SECONDS is ground or sea clutter (rain does not sit in one place for days).
@@ -361,9 +363,17 @@ def declutter(sweep, mask):
     return {**sweep, 'dbz': dbz}
 
 
+IMAGE = '(image)'   # suffix of a radar read off its picture, in a frame's sites
+
+
 def write_frame(conn, directory, ts, used, sweeps, lat, lon, now, masks):
-    """Composite the sweeps of `used` radars (clutter removed) into the frame at ts."""
-    field = composite([declutter(sweeps[s], clutter_mask(directory, s, now, masks)) for s in used], lat, lon)
+    """Composite the sweeps of `used` radars (clutter removed) into the frame at ts.
+
+    used: site codes, an image-derived one with the IMAGE suffix (its clutter map never applies:
+    the pseudo-sweep has other gates, and CyDoM's images are filtered already).
+    """
+    field = composite([sweeps[s] if s.endswith(IMAGE) else declutter(sweeps[s], clutter_mask(directory, s, now, masks))
+                       for s in used], lat, lon)
     radar_store.frame_path(directory, ts).write_bytes(render(field))
     summary = json.dumps(cell_summary(field, lat, lon), separators=(',', ':'))
     with conn:
@@ -382,9 +392,11 @@ def rebuild(directory, now=None):
         for ts, sites in conn.execute('SELECT ts, sites FROM radar_frames ORDER BY ts').fetchall():
             used, sweeps = sites.split(','), {}
             for site in used:
-                near = [t for t in stamps[site] if 0 <= ts - t <= PAIR_SECONDS]
+                code = site.removesuffix(IMAGE)
+                pool = radar_images.stamps(directory, code) if site.endswith(IMAGE) else stamps.get(code, {})
+                near = [t for t in pool if 0 <= ts - t <= PAIR_SECONDS]
                 if near:
-                    sweeps[site] = load_sweep(stamps[site][max(near)])
+                    sweeps[site] = load_sweep(pool[max(near)])
             if set(sweeps) != set(used):
                 continue
             write_frame(conn, directory, ts, used, sweeps, lat, lon, now, masks)
@@ -406,6 +418,23 @@ def collect(directory, html=None, opener=RangeFile, now=None):
         files = list_files(html)
         pending = sorted((file_time(n), site, n) for site, names in files.items() for n in names if n not in done)
         latest = {}  # site -> (ts, sweep) of the newest sweep read in this run
+        # A radar without raw volumes for RAW_GAP_SECONDS (CyDoM stopped publishing Larnaca's on
+        # 2026-11-04) is read off its MAX image, when that image is live.
+        fresh_images = {}
+        for code in radar_images.SITES:
+            if not any(now - file_time(n) <= RAW_GAP_SECONDS for n in files.get(code, [])):
+                try:
+                    stamp = radar_images.poll(directory, code, now)
+                    if stamp:
+                        fresh_images[code] = stamp
+                except Exception:
+                    logging.exception('Radar %s image not read', code)
+
+        def image_pair(code, ts):
+            pool = radar_images.stamps(directory, code)
+            near = [t for t in pool if 0 <= ts - t <= PAIR_SECONDS]
+            return (max(near), load_sweep(pool[max(near)])) if near else None
+
         for ts, site, name in pending:
             try:
                 sweep = sweep_of(directory, name, opener)
@@ -425,10 +454,10 @@ def collect(directory, html=None, opener=RangeFile, now=None):
                 continue
             latest[site] = (ts, sweep)
             # Pair with the other radar's newest sweep; read it if this run has not.
-            for other, names in files.items():
+            for other in sorted(set(files) | set(radar_images.SITES)):
                 if other == site or other in latest:
                     continue
-                candidates = [n for n in names if abs(file_time(n) - ts) <= PAIR_SECONDS and file_time(n) <= ts]
+                candidates = [n for n in files.get(other, []) if abs(file_time(n) - ts) <= PAIR_SECONDS and file_time(n) <= ts]
                 if candidates:
                     try:
                         latest[other] = (file_time(candidates[-1]), sweep_of(directory, candidates[-1], opener))
@@ -436,11 +465,28 @@ def collect(directory, html=None, opener=RangeFile, now=None):
                         logging.warning('Radar file %s not read: %s', candidates[-1], error)
                     except Exception:
                         logging.exception('Radar file %s not read', candidates[-1])
+                if other not in latest and (pair := image_pair(other, ts)):
+                    latest[other + IMAGE] = pair
             used = sorted(s for s, (t, _) in latest.items() if 0 <= ts - t <= PAIR_SECONDS)
             write_frame(conn, directory, ts, used, {s: latest[s][1] for s in used}, lat, lon, now, masks)
             with conn:
                 conn.execute('INSERT OR REPLACE INTO radar_files(name, site, ts, processed) VALUES (?, ?, ?, ?)',
                              (name, site, ts, now))
+            made += 1
+        # A frame from images alone when no raw volume came near the image's moment.
+        for code, stamp in fresh_images.items():
+            if conn.execute('SELECT 1 FROM radar_frames WHERE ABS(ts - ?) <= ?', (stamp, PAIR_SECONDS // 2)).fetchone():
+                continue
+            sweeps = {code + IMAGE: load_sweep(radar_images.image_path(directory, code, stamp))}
+            for other in radar_images.SITES:
+                if other == code:
+                    continue
+                raw = [t for t in sweep_stamps(directory, other) if 0 <= stamp - t <= PAIR_SECONDS]
+                if raw:
+                    sweeps[other] = load_sweep(sweep_stamps(directory, other)[max(raw)])
+                elif pair := image_pair(other, stamp):
+                    sweeps[other + IMAGE] = pair[1]
+            write_frame(conn, directory, stamp, sorted(sweeps), sweeps, lat, lon, now, masks)
             made += 1
         old = now - KEEP_SECONDS
         for (ts,) in conn.execute('SELECT ts FROM radar_frames WHERE ts < ?', (old,)).fetchall():
