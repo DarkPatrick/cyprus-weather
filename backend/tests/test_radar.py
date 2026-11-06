@@ -16,12 +16,12 @@ from server import make_server
 LCA = (34.93654, 33.56654)
 
 
-def volume(lat, lon, cell=None, rays=360, gates=2500, step=100.0, first_azimuth=0.0):
+def volume(lat, lon, cell=None, rays=360, gates=2500, step=100.0, first_azimuth=0.0, scans=((1, 5.0), (0, 0.5)), cell_scan=0):
     """A minimal GAMIC-like volume: two sweeps, Zh as UV16, optional rain cell (azimuth, km, dBZ)."""
     buffer = io.BytesIO()
     with h5py.File(buffer, 'w') as f:
         f.create_group('where').attrs.update({'lat': lat, 'lon': lon, 'height': 100.0})
-        for index, elevation in ((1, 5.0), (0, 0.5)):
+        for index, elevation in scans:
             scan = f.create_group(f'scan{index}')
             scan.create_group('how').attrs.update({'elevation': elevation, 'range_step': step})
             start = (first_azimuth + np.arange(rays)) % 360
@@ -29,7 +29,7 @@ def volume(lat, lon, cell=None, rays=360, gates=2500, step=100.0, first_azimuth=
             header['azimuth_start'], header['azimuth_stop'] = start, (start + 1) % 360
             scan.create_dataset('ray_header', data=header)
             raw = np.zeros((rays, gates), dtype=np.uint16)
-            if cell and index == 0:
+            if cell and index == cell_scan:
                 azimuth, km, dbz = cell
                 ray = int((azimuth - first_azimuth) % 360)
                 gate = int(km * 1000 / step)
@@ -52,6 +52,16 @@ def test_lowest_sweep_is_decoded_with_azimuths_and_gates():
     assert np.nanmax(sweep['dbz']) == pytest.approx(40, abs=0.01)
     assert np.isnan(sweep['dbz'][0, 0])
     assert sweep['azimuth'][0] == pytest.approx(71.5)
+
+
+def test_rain_above_a_blocked_lowest_sweep_is_kept_but_sweeps_above_max_elevation_are_not():
+    three = ((0, 0.5), (1, 1.4), (2, 5.0))
+    seen = radar.read_sweep(volume(*LCA, cell=(30, 40, 38), scans=three, cell_scan=1, first_azimuth=17))
+    assert seen['elevations'] == 2 and np.nanmax(seen['dbz']) == pytest.approx(38, abs=0.01)
+    field = radar.sample(seen, *radar.grid())
+    assert np.nanmax(field) == pytest.approx(38, abs=0.01)
+    high = radar.read_sweep(volume(*LCA, cell=(30, 40, 38), scans=three, cell_scan=2))
+    assert np.isnan(high['dbz']).all()
 
 
 def test_a_cell_north_of_the_radar_lands_north_on_the_map():

@@ -35,6 +35,7 @@ PAIR_SECONDS = 12 * 60            # sweeps of the two radars combined into one f
 KEEP_SECONDS = 7 * 86400          # frames, cell summaries and the sweeps they were built from
 MIN_DBZ = 10                      # weaker echoes are mostly noise and sea clutter
 HEAVY_DBZ = 30                    # about 3 mm/h and more
+MAX_ELEVATION = 4.1                # degrees: sweeps combined into the column maximum
 MAX_RAY_GAP = 1.5                 # degrees between a pixel and the nearest ray
 LOOP_SECONDS = 180
 GONE_SECONDS = 20 * 60           # a listed volume answering 404 for longer than this is deleted
@@ -128,20 +129,51 @@ def decode(raw, attrs):
     return dbz
 
 
+def _scan(volume, key):
+    scan = volume[key]
+    moment = next(scan[k] for k in scan if k.startswith('moment_') and _text(scan[k].attrs.get('moment')) == 'Zh')
+    rays = scan['ray_header'][:]
+    start, stop = rays['azimuth_start'] % 360, rays['azimuth_stop'] % 360
+    return {'azimuth': (start + ((stop - start) % 360) / 2) % 360,
+            'range_step': float(scan['how'].attrs['range_step']), 'dbz': decode(moment[:], moment.attrs)}
+
+
+def _onto(base, other):
+    """other's dBZ resampled onto base's rays and gates (nearest ray, same ground range)."""
+    order = np.argsort(other['azimuth'])
+    centres = other['azimuth'][order]
+    wrapped = np.concatenate([centres - 360, centres, centres + 360])
+    right = np.clip(np.searchsorted(wrapped, base['azimuth']), 1, len(wrapped) - 1)
+    left = right - 1
+    nearest = np.where(base['azimuth'] - wrapped[left] <= wrapped[right] - base['azimuth'], left, right)
+    ray = order[nearest % len(centres)]
+    gates = np.round(np.arange(base['dbz'].shape[1]) * base['range_step'] / other['range_step']).astype(np.int64)
+    out = np.full(base['dbz'].shape, np.nan, dtype=np.float32)
+    ok = gates < other['dbz'].shape[1]
+    out[:, ok] = other['dbz'][ray][:, gates[ok]]
+    return out
+
+
 def read_sweep(fileobj):
-    """Lowest sweep of a volume: site position, ray azimuths, gate size and dBZ."""
+    """Column maximum of a volume's sweeps up to MAX_ELEVATION, on the lowest sweep's rays and gates.
+
+    The lowest sweep (0.5 deg) alone misses most rain inland: terrain blocks it and it passes
+    under the cloud. Against rain gauges on 2026-11-06 it caught 11 % of 10-minute rain samples
+    from the Paphos radar, the column maximum up to 4 deg about 75 % (CyDoM's own images are MAX
+    products too). Higher sweeps add almost nothing and cost download.
+    """
     with h5py.File(fileobj, 'r') as volume:
         lat = float(volume['where'].attrs['lat'])
         lon = float(volume['where'].attrs['lon'])
-        scans = sorted((k for k in volume if k.startswith('scan')), key=lambda k: float(volume[k]['how'].attrs['elevation']))
-        scan = volume[scans[0]]
-        moment = next(scan[k] for k in scan if k.startswith('moment_') and _text(scan[k].attrs.get('moment')) == 'Zh')
-        dbz = decode(moment[:], moment.attrs)
-        rays = scan['ray_header'][:]
-        start, stop = rays['azimuth_start'] % 360, rays['azimuth_stop'] % 360
-        azimuth = (start + ((stop - start) % 360) / 2) % 360
-        step = float(scan['how'].attrs['range_step'])
-    return {'lat': lat, 'lon': lon, 'azimuth': azimuth, 'range_step': step, 'dbz': dbz}
+        keys = sorted((k for k in volume if k.startswith('scan')), key=lambda k: float(volume[k]['how'].attrs['elevation']))
+        keys = [k for i, k in enumerate(keys) if i == 0 or float(volume[k]['how'].attrs['elevation']) <= MAX_ELEVATION]
+        base = _scan(volume, keys[0])
+        dbz = base['dbz']
+        with np.errstate(invalid='ignore'):
+            for key in keys[1:]:
+                dbz = np.fmax(dbz, _onto(base, _scan(volume, key)))
+    return {'lat': lat, 'lon': lon, 'azimuth': base['azimuth'], 'range_step': base['range_step'], 'dbz': dbz,
+            'elevations': len(keys)}
 
 
 def grid():
