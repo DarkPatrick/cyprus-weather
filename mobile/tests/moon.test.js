@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {brightLimbAngle,parallacticAngle,moonState,moonTimes,nextPhases,phaseKey,litPath,screenRotation} from '../src/moon.js';
+import {brightLimbAngle,parallacticAngle,moonState,moonTimes,nextPhases,phaseKey,litPath,screenRotation,moonImage,lunarLambert} from '../src/moon.js';
 
 test('bright limb position angle matches Meeus example 48.a (1992-04-12)',()=>{
  assert.ok(Math.abs(brightLimbAngle(20.6579,8.6964,134.6885,13.7684)-285.0)<0.1);
@@ -33,4 +33,10 @@ test('lit shape and screen rotation',()=>{
  assert.equal(Math.round(screenRotation(0)),270);    // lit limb up
  assert.equal(Math.round(screenRotation(90)),180);   // towards the east = left
  assert.equal(Math.round(screenRotation(270)),0);    // towards the west = right
+});
+test('shading: full Moon is nearly flat, the terminator fades to nothing',()=>{
+ const n=40,row=(phaseAngle)=>{const s=moonImage({phaseAngle,limbAngle:270,axisAngle:0},n);return Array.from({length:n},(_,i)=>s[4*((n/2)*n+i)]);};
+ const full=row(0);assert.ok(full[n/2]>=245&&full[3]>150);           // limb barely darker at full
+ const half=row(90);assert.equal(half[n/2-2],0);assert.ok(half[n/2+1]<120&&half[n-3]>200);  // lit limb to the west = right
+ assert.ok(lunarLambert(0.5,0.5,0)>lunarLambert(0.5,0.5,90)*0.9);
 });

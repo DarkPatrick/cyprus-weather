@@ -13,6 +13,7 @@ Kairo shows public weather data from the providers below. The app's own code lic
 | Department of Labour Inspection, Cyprus (airquality.dli.mlsi.gov.cy) | Measured air-quality concentrations | No published reuse licence found; credited as DLI. |
 | EUMETSAT (Meteosat-12 / MTG Lightning Imager) | Lightning flashes over Cyprus | EUMETSAT data policy; credit "© EUMETSAT [year]". |
 | MeteoAlarm (feeds.meteoalarm.org) | Official warnings for Cyprus | MeteoAlarm terms and conditions for redistributors apply. |
+| NASA Scientific Visualization Studio, CGI Moon Kit (LRO LROC WAC mosaic) | Moon surface map in the Moon picture (`mobile/src/moon-map.jpg`, converted to grey) | NASA imagery, not copyrighted; credit "NASA's Scientific Visualization Studio". |
 | OpenStreetMap (tile.openstreetmap.org) | Base map tiles | Map data © OpenStreetMap contributors (ODbL). Tile use must follow the OSMF Tile Usage Policy: visible attribution, an identifying User-Agent, no bulk or offline download. |
 
 ## Software
